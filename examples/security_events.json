@@ -1,0 +1,87 @@
+{
+  "integrationName": "SecurityVendor",
+  "timestamp": "2023-10-15T10:30:00Z",
+  "raw_events": {
+    "events": [
+      {
+        "id": "evt-001",
+        "severity": "high",
+        "title": "Malware Detection",
+        "network": {
+          "sourceIp": "192.168.1.100",
+          "destIp": "10.0.0.5",
+          "port": 443
+        },
+        "securityResult": [
+          {
+            "detectionFields": [
+              {"key": "malware_family", "value": "Trojan.Generic"},
+              {"key": "confidence", "value": "0.95"},
+              {"key": "severity_score", "value": "8.5"}
+            ]
+          }
+        ],
+        "metadata": {
+          "processed": true,
+          "internal_id": "12345-debug",
+          "debug_info": "should_be_removed"
+        }
+      },
+      {
+        "id": "evt-002",
+        "severity": "medium", 
+        "title": "Suspicious Network Activity",
+        "network": {
+          "sourceIp": "10.0.0.5",
+          "destIp": "8.8.8.8",
+          "port": 53
+        },
+        "securityResult": [
+          {
+            "detectionFields": [
+              {"key": "attack_type", "value": "DNS Tunneling"},
+              {"key": "confidence", "value": "0.70"},
+              {"key": "severity_score", "value": "5.2"}
+            ]
+          }
+        ],
+        "metadata": {
+          "processed": true,
+          "internal_id": "12346-debug",
+          "debug_info": "should_be_removed"
+        }
+      },
+      {
+        "id": "evt-003",
+        "severity": "low",
+        "title": "Policy Violation",
+        "network": {
+          "sourceIp": "192.168.1.50",
+          "destIp": "external.com",
+          "port": 80
+        },
+        "securityResult": [
+          {
+            "detectionFields": [
+              {"key": "policy_type", "value": "Web Access"},
+              {"key": "confidence", "value": "0.90"},
+              {"key": "severity_score", "value": "2.1"}
+            ]
+          }
+        ],
+        "metadata": {
+          "processed": true,
+          "internal_id": "12347-debug",
+          "debug_info": "should_be_removed"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "total_events": 3,
+    "high_severity": 1,
+    "medium_severity": 1,
+    "low_severity": 1,
+    "processing_time": "2.5ms"
+  }
+}

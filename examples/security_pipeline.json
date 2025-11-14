@@ -1,0 +1,45 @@
+{
+  "root": {
+    "path": "raw_events",
+    "on_null": "return_empty"
+  },
+  "pipeline": [
+    {
+      "op": "drop",
+      "paths": [
+        "events[].metadata.debug_info",
+        "events[].metadata.internal_id"
+      ]
+    },
+    {
+      "op": "list_to_map", 
+      "path": "events[].securityResult[].detectionFields",
+      "key_from": "key",
+      "value_from": "value"
+    },
+    {
+      "op": "project_and_replace",
+      "projection": {
+        "security_events": "events",
+        "event_count": "events"
+      }
+    },
+    {
+      "op": "truncate_list",
+      "path": "security_events",
+      "max_size": 5,
+      "shape": {
+        "total_events": "$length",
+        "sample_events": "$slice(0, 5)",
+        "event_titles": "$map_slice(0, 3, title)",
+        "truncated": true
+      }
+    }
+  ],
+  "output": {
+    "source": "$root.integrationName",
+    "timestamp": "$root.timestamp", 
+    "summary": "$root.summary",
+    "processed_data": "$working"
+  }
+}

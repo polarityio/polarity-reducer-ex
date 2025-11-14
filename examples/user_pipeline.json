@@ -1,0 +1,35 @@
+{
+  "root": {
+    "path": "user_data",
+    "on_null": "return_empty"
+  },
+  "pipeline": [
+    {
+      "op": "list_to_map",
+      "path": "users[].profile.preferences", 
+      "key_from": "key",
+      "value_from": "value"
+    },
+    {
+      "op": "project",
+      "path": "users",
+      "mapping": {
+        "user_profiles": "users"
+      }
+    },
+    {
+      "op": "aggregate_list",
+      "path": "users",
+      "shape": {
+        "oldest_user_age": "$max(profile.age)",
+        "youngest_user_age": "$min(profile.age)",
+        "most_recent_login": "$max(activity.last_login)"
+      }
+    }
+  ],
+  "output": {
+    "source": "$root.metadata.source",
+    "user_stats": "$working.users",
+    "original_count": "$root.user_data.users"
+  }
+}
