@@ -110,6 +110,10 @@ defmodule DslInterpreter do
     apply_prune_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "rename"} = operation) do
+    apply_rename_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -254,6 +258,15 @@ defmodule DslInterpreter do
 
   defp apply_prune_operation(working_map, _), do: working_map
 
+  # Rename operation: renames fields according to mapping
+  defp apply_rename_operation(working_map, %{"mapping" => mapping}) when is_map(mapping) do
+    Enum.reduce(mapping, working_map, fn {from_path, to_path}, acc ->
+      rename_field(acc, from_path, to_path)
+    end)
+  end
+
+  defp apply_rename_operation(working_map, _), do: working_map
+
   # ===== PATH UTILITIES =====
 
   # Parse a string path into a list of components, handling [] wildcards
@@ -327,6 +340,83 @@ defmodule DslInterpreter do
     Enum.map(list, &drop_at_path(&1, rest))
   end
   defp drop_at_path(data, _), do: data
+
+  # Rename a field from one path to another with wildcard support
+  defp rename_field(data, from_path, to_path) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+    
+    # Find the common prefix and divergent suffix
+    {common_prefix, from_suffix, to_suffix} = find_path_divergence(from_parsed, to_parsed)
+    
+    # Navigate to the common prefix and perform the rename on the divergent parts
+    rename_with_prefix(data, common_prefix, from_suffix, to_suffix)
+  end
+
+  # Find where two paths diverge
+  defp find_path_divergence(from_path, to_path) do
+    find_path_divergence(from_path, to_path, [])
+  end
+
+  defp find_path_divergence([same | from_rest], [same | to_rest], common_acc) do
+    find_path_divergence(from_rest, to_rest, common_acc ++ [same])
+  end
+  
+  defp find_path_divergence(from_rest, to_rest, common_acc) do
+    {common_acc, from_rest, to_rest}
+  end
+
+  # Rename with a common prefix - navigate to the prefix then rename the suffixes
+  defp rename_with_prefix(data, [], from_suffix, to_suffix) do
+    # We're at the divergence point, do the actual rename
+    perform_suffix_rename(data, from_suffix, to_suffix)
+  end
+  
+  defp rename_with_prefix(data, [key | prefix_rest], from_suffix, to_suffix) when is_map(data) do
+    case Map.get(data, key) do
+      nil -> data
+      value -> Map.put(data, key, rename_with_prefix(value, prefix_rest, from_suffix, to_suffix))
+    end
+  end
+  
+  defp rename_with_prefix(list, ["[]" | prefix_rest], from_suffix, to_suffix) when is_list(list) do
+    Enum.map(list, &rename_with_prefix(&1, prefix_rest, from_suffix, to_suffix))
+  end
+  
+  defp rename_with_prefix(data, _, _, _), do: data
+
+  # Perform the actual rename at the divergence point
+  defp perform_suffix_rename(data, [from_key], [to_key]) when is_map(data) do
+    case Map.get(data, from_key) do
+      nil -> data
+      value -> 
+        data
+        |> Map.put(to_key, value)
+        |> Map.delete(from_key)
+    end
+  end
+  
+  defp perform_suffix_rename(data, from_suffix, to_suffix) when is_map(data) do
+    # Handle multi-level suffixes recursively
+    case {from_suffix, to_suffix} do
+      {[from_key | from_rest], [to_key | to_rest]} ->
+        case Map.get(data, from_key) do
+          nil -> data
+          value -> 
+            renamed_value = perform_suffix_rename(value, from_rest, to_rest)
+            data
+            |> Map.put(to_key, renamed_value)
+            |> Map.delete(from_key)
+        end
+      _ -> data
+    end
+  end
+  
+  defp perform_suffix_rename(list, ["[]" | from_rest], ["[]" | to_rest]) when is_list(list) do
+    Enum.map(list, &perform_suffix_rename(&1, from_rest, to_rest))
+  end
+  
+  defp perform_suffix_rename(data, _, _), do: data
 
   # ===== HELPER FUNCTIONS =====
 
@@ -539,5 +629,10 @@ defmodule DslInterpreter do
   @doc false
   def apply_prune_operation_public(working_map, operation) do
     apply_prune_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_rename_operation_public(working_map, operation) do
+    apply_rename_operation(working_map, operation)
   end
 end

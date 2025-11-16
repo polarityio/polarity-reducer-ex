@@ -220,6 +220,7 @@ defmodule DslPipelineTester do
       %{"op" => "truncate_list"} -> apply_truncate_list_operation(working_map, operation)
       %{"op" => "aggregate_list"} -> apply_aggregate_list_operation(working_map, operation)
       %{"op" => "prune"} -> apply_prune_operation(working_map, operation)
+      %{"op" => "rename"} -> apply_rename_operation(working_map, operation)
       _ -> working_map
     end
   end
@@ -244,6 +245,7 @@ defmodule DslPipelineTester do
   defp apply_truncate_list_operation(working_map, operation), do: DslInterpreter.apply_truncate_list_operation_public(working_map, operation)
   defp apply_aggregate_list_operation(working_map, operation), do: DslInterpreter.apply_aggregate_list_operation_public(working_map, operation)
   defp apply_prune_operation(working_map, operation), do: DslInterpreter.apply_prune_operation_public(working_map, operation)
+  defp apply_rename_operation(working_map, operation), do: DslInterpreter.apply_rename_operation_public(working_map, operation)
 
   # ===== UTILITY FUNCTIONS =====
 
@@ -326,6 +328,11 @@ defmodule DslPipelineTester do
 
   defp describe_operation(%{"op" => "prune"}) do
     "Removing empty values (nil, \"\", {}, []) recursively"
+  end
+
+  defp describe_operation(%{"op" => "rename", "mapping" => mapping}) do
+    renames = Enum.map(mapping, fn {from, to} -> "#{from} → #{to}" end)
+    "Renaming fields: #{Enum.join(renames, ", ")}"
   end
 
   defp describe_operation(%{"op" => op}) do
