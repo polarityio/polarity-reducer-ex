@@ -1,6 +1,8 @@
-defmodule DslInterpreterTest do
+defmodule PolarityReducerEx.DslInterpreterTest do
   use ExUnit.Case
-  doctest DslInterpreter
+
+  alias PolarityReducerEx.DslInterpreter
+  doctest PolarityReducerEx.DslInterpreter
 
   describe "execute/2" do
     test "basic root resolution and output building" do

@@ -1,4 +1,4 @@
-defmodule DslPipelineTester do
+defmodule PolarityReducerEx.DslPipelineTester do
   @moduledoc """
   SDK for testing DSL pipelines with step-by-step execution and visualization.
 
@@ -9,6 +9,7 @@ defmodule DslPipelineTester do
   - Providing detailed analysis and debugging information
   """
 
+  alias PolarityReducerEx.DslInterpreter
   require Logger
 
   @doc """
@@ -220,6 +221,12 @@ defmodule DslPipelineTester do
       %{"op" => "truncate_list"} -> apply_truncate_list_operation(working_map, operation)
       %{"op" => "aggregate_list"} -> apply_aggregate_list_operation(working_map, operation)
       %{"op" => "prune"} -> apply_prune_operation(working_map, operation)
+      %{"op" => "rename"} -> apply_rename_operation(working_map, operation)
+      %{"op" => "format_date"} -> apply_format_date_operation(working_map, operation)
+      %{"op" => "parse_date"} -> apply_parse_date_operation(working_map, operation)
+      %{"op" => "date_add"} -> apply_date_add_operation(working_map, operation)
+      %{"op" => "date_diff"} -> apply_date_diff_operation(working_map, operation)
+      %{"op" => "current_timestamp"} -> apply_current_timestamp_operation(working_map, operation)
       _ -> working_map
     end
   end
@@ -244,6 +251,12 @@ defmodule DslPipelineTester do
   defp apply_truncate_list_operation(working_map, operation), do: DslInterpreter.apply_truncate_list_operation_public(working_map, operation)
   defp apply_aggregate_list_operation(working_map, operation), do: DslInterpreter.apply_aggregate_list_operation_public(working_map, operation)
   defp apply_prune_operation(working_map, operation), do: DslInterpreter.apply_prune_operation_public(working_map, operation)
+  defp apply_rename_operation(working_map, operation), do: DslInterpreter.apply_rename_operation_public(working_map, operation)
+  defp apply_format_date_operation(working_map, operation), do: DslInterpreter.apply_format_date_operation_public(working_map, operation)
+  defp apply_parse_date_operation(working_map, operation), do: DslInterpreter.apply_parse_date_operation_public(working_map, operation)
+  defp apply_date_add_operation(working_map, operation), do: DslInterpreter.apply_date_add_operation_public(working_map, operation)
+  defp apply_date_diff_operation(working_map, operation), do: DslInterpreter.apply_date_diff_operation_public(working_map, operation)
+  defp apply_current_timestamp_operation(working_map, operation), do: DslInterpreter.apply_current_timestamp_operation_public(working_map, operation)
 
   # ===== UTILITY FUNCTIONS =====
 
@@ -326,6 +339,31 @@ defmodule DslPipelineTester do
 
   defp describe_operation(%{"op" => "prune"}) do
     "Removing empty values (nil, \"\", {}, []) recursively"
+  end
+
+  defp describe_operation(%{"op" => "rename", "mapping" => mapping}) do
+    renames = Enum.map(mapping, fn {from, to} -> "#{from} → #{to}" end)
+    "Renaming fields: #{Enum.join(renames, ", ")}"
+  end
+
+  defp describe_operation(%{"op" => "format_date", "path" => path, "format" => format}) do
+    "Formatting date at '#{path}' to #{format} format"
+  end
+
+  defp describe_operation(%{"op" => "parse_date", "path" => path}) do
+    "Parsing date string at '#{path}' to standardized format"
+  end
+
+  defp describe_operation(%{"op" => "date_add", "path" => path, "amount" => amount, "unit" => unit}) do
+    "Adding #{amount} #{unit} to date at '#{path}'"
+  end
+
+  defp describe_operation(%{"op" => "date_diff", "from_path" => from_path, "to_path" => to_path, "result_path" => result_path}) do
+    "Calculating date difference from '#{from_path}' to '#{to_path}', storing result in '#{result_path}'"
+  end
+
+  defp describe_operation(%{"op" => "current_timestamp", "path" => path}) do
+    "Setting current timestamp at '#{path}'"
   end
 
   defp describe_operation(%{"op" => op}) do

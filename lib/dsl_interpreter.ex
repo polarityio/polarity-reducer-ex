@@ -1,4 +1,4 @@
-defmodule DslInterpreter do
+defmodule PolarityReducerEx.DslInterpreter do
   @moduledoc """
   A JSON-based Domain Specific Language (DSL) interpreter for data transformation and reduction.
 
@@ -11,6 +11,8 @@ defmodule DslInterpreter do
   2. `pipeline`: Array of transformation operations
   3. `output`: Final object projection with $root and $working variables
   """
+
+
 
   @doc """
   Main entry point for the DSL interpreter.
@@ -108,6 +110,30 @@ defmodule DslInterpreter do
 
   defp apply_operation(working_map, %{"op" => "prune"} = operation) do
     apply_prune_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "rename"} = operation) do
+    apply_rename_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "format_date"} = operation) do
+    apply_format_date_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "parse_date"} = operation) do
+    apply_parse_date_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "date_add"} = operation) do
+    apply_date_add_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "date_diff"} = operation) do
+    apply_date_diff_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "current_timestamp"} = operation) do
+    apply_current_timestamp_operation(working_map, operation)
   end
 
   defp apply_operation(working_map, _unknown_operation), do: working_map
@@ -254,6 +280,76 @@ defmodule DslInterpreter do
 
   defp apply_prune_operation(working_map, _), do: working_map
 
+  # Rename operation: renames fields according to mapping
+  defp apply_rename_operation(working_map, %{"mapping" => mapping}) when is_map(mapping) do
+    Enum.reduce(mapping, working_map, fn {from_path, to_path}, acc ->
+      rename_field(acc, from_path, to_path)
+    end)
+  end
+
+  defp apply_rename_operation(working_map, _), do: working_map
+
+  # Format date operation: formats date/datetime fields
+  defp apply_format_date_operation(working_map, %{"path" => path, "format" => format} = operation) do
+    input_format = Map.get(operation, "input_format", "auto")
+
+    update_at_path(working_map, parse_path(path), fn value ->
+      format_date_value(value, input_format, format)
+    end)
+  end
+
+  defp apply_format_date_operation(working_map, _), do: working_map
+
+  # Parse date operation: parses date strings into standardized format
+  defp apply_parse_date_operation(working_map, %{"path" => path} = operation) do
+    input_format = Map.get(operation, "input_format", "auto")
+    output_format = Map.get(operation, "output_format", "iso8601")
+
+    update_at_path(working_map, parse_path(path), fn value ->
+      parse_date_value(value, input_format, output_format)
+    end)
+  end
+
+  defp apply_parse_date_operation(working_map, _), do: working_map
+
+  # Date add operation: adds time intervals to date fields
+  defp apply_date_add_operation(working_map, %{"path" => path, "amount" => amount, "unit" => unit} = operation) do
+    input_format = Map.get(operation, "input_format", "auto")
+    output_format = Map.get(operation, "output_format", "iso8601")
+
+    update_at_path(working_map, parse_path(path), fn value ->
+      add_to_date_value(value, amount, unit, input_format, output_format)
+    end)
+  end
+
+  defp apply_date_add_operation(working_map, _), do: working_map
+
+  # Date diff operation: calculates difference between two date fields
+  defp apply_date_diff_operation(working_map, %{"from_path" => from_path, "to_path" => to_path, "result_path" => result_path} = operation) do
+    unit = Map.get(operation, "unit", "days")
+    input_format = Map.get(operation, "input_format", "auto")
+
+    from_value = get_nested_value(working_map, parse_path(from_path))
+    to_value = get_nested_value(working_map, parse_path(to_path))
+
+    diff_result = calculate_date_diff(from_value, to_value, unit, input_format)
+
+    put_nested_value(working_map, parse_path(result_path), diff_result)
+  end
+
+  defp apply_date_diff_operation(working_map, _), do: working_map
+
+  # Current timestamp operation: adds current timestamp to specified path
+  defp apply_current_timestamp_operation(working_map, %{"path" => path} = operation) do
+    format = Map.get(operation, "format", "iso8601")
+    timezone = Map.get(operation, "timezone", "UTC")
+
+    timestamp = generate_current_timestamp(format, timezone)
+    put_nested_value(working_map, parse_path(path), timestamp)
+  end
+
+  defp apply_current_timestamp_operation(working_map, _), do: working_map
+
   # ===== PATH UTILITIES =====
 
   # Parse a string path into a list of components, handling [] wildcards
@@ -328,10 +424,91 @@ defmodule DslInterpreter do
   end
   defp drop_at_path(data, _), do: data
 
+  # Rename a field from one path to another with wildcard support
+  defp rename_field(data, from_path, to_path) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+
+    # Find the common prefix and divergent suffix
+    {common_prefix, from_suffix, to_suffix} = find_path_divergence(from_parsed, to_parsed)
+
+    # Navigate to the common prefix and perform the rename on the divergent parts
+    rename_with_prefix(data, common_prefix, from_suffix, to_suffix)
+  end
+
+  # Find where two paths diverge
+  defp find_path_divergence(from_path, to_path) do
+    find_path_divergence(from_path, to_path, [])
+  end
+
+  defp find_path_divergence([same | from_rest], [same | to_rest], common_acc) do
+    find_path_divergence(from_rest, to_rest, common_acc ++ [same])
+  end
+
+  defp find_path_divergence(from_rest, to_rest, common_acc) do
+    {common_acc, from_rest, to_rest}
+  end
+
+  # Rename with a common prefix - navigate to the prefix then rename the suffixes
+  defp rename_with_prefix(data, [], from_suffix, to_suffix) do
+    # We're at the divergence point, do the actual rename
+    perform_suffix_rename(data, from_suffix, to_suffix)
+  end
+
+  defp rename_with_prefix(data, [key | prefix_rest], from_suffix, to_suffix) when is_map(data) do
+    case Map.get(data, key) do
+      nil -> data
+      value -> Map.put(data, key, rename_with_prefix(value, prefix_rest, from_suffix, to_suffix))
+    end
+  end
+
+  defp rename_with_prefix(list, ["[]" | prefix_rest], from_suffix, to_suffix) when is_list(list) do
+    Enum.map(list, &rename_with_prefix(&1, prefix_rest, from_suffix, to_suffix))
+  end
+
+  defp rename_with_prefix(data, _, _, _), do: data
+
+  # Perform the actual rename at the divergence point
+  defp perform_suffix_rename(data, [from_key], [to_key]) when is_map(data) do
+    case Map.get(data, from_key) do
+      nil -> data
+      value ->
+        data
+        |> Map.put(to_key, value)
+        |> Map.delete(from_key)
+    end
+  end
+
+  defp perform_suffix_rename(data, from_suffix, to_suffix) when is_map(data) do
+    # Handle multi-level suffixes recursively
+    case {from_suffix, to_suffix} do
+      {[from_key | from_rest], [to_key | to_rest]} ->
+        case Map.get(data, from_key) do
+          nil -> data
+          value ->
+            renamed_value = perform_suffix_rename(value, from_rest, to_rest)
+            data
+            |> Map.put(to_key, renamed_value)
+            |> Map.delete(from_key)
+        end
+      _ -> data
+    end
+  end
+
+  defp perform_suffix_rename(list, ["[]" | from_rest], ["[]" | to_rest]) when is_list(list) do
+    Enum.map(list, &perform_suffix_rename(&1, from_rest, to_rest))
+  end
+
+  defp perform_suffix_rename(data, _, _), do: data
+
   # ===== HELPER FUNCTIONS =====
 
   # Project data using a mapping configuration
-  defp project_data(source_data, mapping) when is_map(mapping) do
+  defp project_data(source_data, mapping) when is_list(source_data) and is_map(mapping) do
+    Enum.map(source_data, fn item -> project_data(item, mapping) end)
+  end
+
+  defp project_data(source_data, mapping) when is_map(source_data) and is_map(mapping) do
     Enum.reduce(mapping, %{}, fn {new_key, old_path}, acc ->
       value = get_nested_value(source_data, parse_path(old_path))
       Map.put(acc, new_key, value)
@@ -339,6 +516,196 @@ defmodule DslInterpreter do
   end
 
   defp project_data(source_data, _), do: source_data
+
+  # ===== DATE/TIME HELPER FUNCTIONS =====
+
+  # Format a date value according to the specified format
+  defp format_date_value(value, input_format, output_format) when is_binary(value) do
+    case parse_datetime_string(value, input_format) do
+      {:ok, datetime} -> format_datetime(datetime, output_format)
+      {:error, _} -> value  # Return original if parsing fails
+    end
+  end
+
+  defp format_date_value(value, _input_format, _output_format), do: value
+
+  # Parse a date value into standardized format
+  defp parse_date_value(value, input_format, output_format) when is_binary(value) do
+    case parse_datetime_string(value, input_format) do
+      {:ok, datetime} -> format_datetime(datetime, output_format)
+      {:error, _} -> value  # Return original if parsing fails
+    end
+  end
+
+  defp parse_date_value(value, _input_format, _output_format), do: value
+
+  # Add time interval to a date value
+  defp add_to_date_value(value, amount, unit, input_format, output_format) when is_binary(value) do
+    case parse_datetime_string(value, input_format) do
+      {:ok, datetime} ->
+        new_datetime = add_time_to_datetime(datetime, amount, unit)
+        format_datetime(new_datetime, output_format)
+      {:error, _} -> value  # Return original if parsing fails
+    end
+  end
+
+  defp add_to_date_value(value, _amount, _unit, _input_format, _output_format), do: value
+
+  # Calculate difference between two dates
+  defp calculate_date_diff(from_value, to_value, unit, input_format) when is_binary(from_value) and is_binary(to_value) do
+    with {:ok, from_datetime} <- parse_datetime_string(from_value, input_format),
+         {:ok, to_datetime} <- parse_datetime_string(to_value, input_format) do
+      calculate_datetime_diff(from_datetime, to_datetime, unit)
+    else
+      _ -> nil  # Return nil if parsing fails
+    end
+  end
+
+  defp calculate_date_diff(_from_value, _to_value, _unit, _input_format), do: nil
+
+  # Generate current timestamp
+  defp generate_current_timestamp(format, timezone) do
+    now = DateTime.utc_now()
+
+    # Convert to specified timezone if not UTC
+    datetime = case timezone do
+      "UTC" -> now
+      tz ->
+        case DateTime.shift_zone(now, tz) do
+          {:ok, shifted} -> shifted
+          {:error, _} -> now  # Fallback to UTC if timezone is invalid
+        end
+    end
+
+    format_datetime(datetime, format)
+  end
+
+  # Parse datetime string with auto-detection or specific format
+  defp parse_datetime_string(value, "auto") do
+    # Try common formats in order
+    formats = [
+      # ISO 8601 formats
+      ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
+      ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/,
+      ~r/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+      ~r/^\d{4}-\d{2}-\d{2}$/,
+      # US formats
+      ~r/^\d{1,2}\/\d{1,2}\/\d{4}$/,
+      ~r/^\d{1,2}-\d{1,2}-\d{4}$/,
+      # Unix timestamp
+      ~r/^\d{10}$/,
+      ~r/^\d{13}$/
+    ]
+
+    cond do
+      Regex.match?(~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, value) ->
+        case DateTime.from_iso8601(value) do
+          {:ok, dt, _} -> {:ok, dt}
+          {:error, _} ->
+            case NaiveDateTime.from_iso8601(value) do
+              {:ok, ndt} -> {:ok, DateTime.from_naive!(ndt, "Etc/UTC")}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      Regex.match?(~r/^\d{4}-\d{2}-\d{2}$/, value) ->
+        case Date.from_iso8601(value) do
+          {:ok, date} -> {:ok, DateTime.new!(date, ~T[00:00:00], "Etc/UTC")}
+          {:error, reason} -> {:error, reason}
+        end
+
+      Regex.match?(~r/^\d{10}$/, value) ->
+        # Unix timestamp (seconds)
+        case Integer.parse(value) do
+          {timestamp, ""} -> {:ok, DateTime.from_unix!(timestamp)}
+          _ -> {:error, :invalid_unix_timestamp}
+        end
+
+      Regex.match?(~r/^\d{13}$/, value) ->
+        # Unix timestamp (milliseconds)
+        case Integer.parse(value) do
+          {timestamp, ""} -> {:ok, DateTime.from_unix!(timestamp, :millisecond)}
+          _ -> {:error, :invalid_unix_timestamp}
+        end
+
+      true -> {:error, :unsupported_format}
+    end
+  end
+
+  defp parse_datetime_string(value, format) do
+    # For specific formats, we'd need more sophisticated parsing
+    # For now, fall back to auto-detection
+    parse_datetime_string(value, "auto")
+  end
+
+  # Format datetime according to specified format
+  defp format_datetime(datetime, "iso8601"), do: DateTime.to_iso8601(datetime)
+  defp format_datetime(datetime, "iso8601_basic"), do: DateTime.to_iso8601(datetime, :basic)
+  defp format_datetime(datetime, "date_only"), do: DateTime.to_date(datetime) |> Date.to_iso8601()
+  defp format_datetime(datetime, "time_only"), do: DateTime.to_time(datetime) |> Time.to_iso8601()
+  defp format_datetime(datetime, "unix"), do: DateTime.to_unix(datetime) |> Integer.to_string()
+  defp format_datetime(datetime, "unix_ms"), do: DateTime.to_unix(datetime, :millisecond) |> Integer.to_string()
+  defp format_datetime(datetime, "human"), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S %Z")
+  defp format_datetime(datetime, _format), do: DateTime.to_iso8601(datetime)  # Default fallback
+
+  # Add time to datetime
+  defp add_time_to_datetime(datetime, amount, "seconds") do
+    DateTime.add(datetime, amount, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "minutes") do
+    DateTime.add(datetime, amount * 60, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "hours") do
+    DateTime.add(datetime, amount * 3600, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "days") do
+    DateTime.add(datetime, amount * 86400, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "weeks") do
+    DateTime.add(datetime, amount * 604800, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "months") do
+    # Approximate month as 30 days
+    DateTime.add(datetime, amount * 2592000, :second)
+  end
+
+  defp add_time_to_datetime(datetime, amount, "years") do
+    # Approximate year as 365 days
+    DateTime.add(datetime, amount * 31536000, :second)
+  end
+
+  defp add_time_to_datetime(datetime, _amount, _unit), do: datetime
+
+  # Calculate difference between datetimes
+  defp calculate_datetime_diff(from_datetime, to_datetime, "seconds") do
+    DateTime.diff(to_datetime, from_datetime, :second)
+  end
+
+  defp calculate_datetime_diff(from_datetime, to_datetime, "minutes") do
+    DateTime.diff(to_datetime, from_datetime, :second) / 60
+  end
+
+  defp calculate_datetime_diff(from_datetime, to_datetime, "hours") do
+    DateTime.diff(to_datetime, from_datetime, :second) / 3600
+  end
+
+  defp calculate_datetime_diff(from_datetime, to_datetime, "days") do
+    DateTime.diff(to_datetime, from_datetime, :second) / 86400
+  end
+
+  defp calculate_datetime_diff(from_datetime, to_datetime, "weeks") do
+    DateTime.diff(to_datetime, from_datetime, :second) / 604800
+  end
+
+  defp calculate_datetime_diff(from_datetime, to_datetime, _unit) do
+    # Default to days
+    DateTime.diff(to_datetime, from_datetime, :second) / 86400
+  end
 
   # Process truncate list shape with special variables
   defp process_truncate_shape(shape, list, _max_size) when is_map(shape) do
@@ -475,6 +842,13 @@ defmodule DslInterpreter do
     end
   end
 
+  defp resolve_output_variable(value_spec, original_data, working_data) when is_map(value_spec) do
+    Enum.reduce(value_spec, %{}, fn {key, value}, acc ->
+      resolved_value = resolve_output_variable(value, original_data, working_data)
+      Map.put(acc, key, resolved_value)
+    end)
+  end
+
   defp resolve_output_variable(literal_value, _original_data, _working_data) do
     literal_value
   end
@@ -539,5 +913,40 @@ defmodule DslInterpreter do
   @doc false
   def apply_prune_operation_public(working_map, operation) do
     apply_prune_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_rename_operation_public(working_map, operation) do
+    apply_rename_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_format_date_operation_public(working_map, operation) do
+    apply_format_date_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_parse_date_operation_public(working_map, operation) do
+    apply_parse_date_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_date_add_operation_public(working_map, operation) do
+    apply_date_add_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_date_diff_operation_public(working_map, operation) do
+    apply_date_diff_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_current_timestamp_operation_public(working_map, operation) do
+    apply_current_timestamp_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_operation_public(working_map, operation) do
+    apply_operation(working_map, operation)
   end
 end
