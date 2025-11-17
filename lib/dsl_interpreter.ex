@@ -427,7 +427,7 @@ defmodule PolarityReducerEx.DslInterpreter do
   # Transform operation: applies transformation functions to field values
   defp apply_transform_operation(working_map, %{"path" => path, "function" => function} = operation) do
     args = Map.get(operation, "args", [])
-    
+
     update_at_path(working_map, parse_path(path), fn value ->
       apply_transform_function(value, function, args)
     end)
@@ -465,7 +465,7 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_transform_function(value, "number", _args) when is_binary(value) do
     case Float.parse(value) do
-      {num, ""} -> 
+      {num, ""} ->
         # Check if it's actually an integer
         if trunc(num) == num do
           trunc(num)
@@ -473,7 +473,7 @@ defmodule PolarityReducerEx.DslInterpreter do
           num
         end
       {num, _} -> num
-      :error -> 
+      :error ->
         case Integer.parse(value) do
           {int, ""} -> int
           {int, _} -> int
@@ -586,15 +586,15 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp apply_copy_operation(working_map, %{"from" => from_path, "to" => to_path}) do
     from_parsed = parse_path(from_path)
     to_parsed = parse_path(to_path)
-    
+
     # Check if both paths are array paths with the same structure for element-wise copying
     case {from_parsed, to_parsed} do
       # Both are array paths like "users[].email" and "users[].backup_email"
-      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]}
       when array_name == same_array_name ->
         # Handle element-wise copying within the same array
         apply_array_element_copying(working_map, array_name, to_fields, from_fields)
-      
+
       # Different arrays or regular paths
       _ ->
         # Get the source value
@@ -610,15 +610,15 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp apply_move_operation(working_map, %{"from" => from_path, "to" => to_path}) do
     from_parsed = parse_path(from_path)
     to_parsed = parse_path(to_path)
-    
+
     # Check if both paths are array paths with the same structure for element-wise moving
     case {from_parsed, to_parsed} do
       # Both are array paths like "users[].old_email" and "users[].new_email"
-      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]}
       when array_name == same_array_name ->
         # Handle element-wise moving within the same array
         apply_array_element_moving(working_map, array_name, from_fields, to_fields)
-      
+
       # Different arrays or regular paths
       _ ->
         # Get the source value
@@ -632,14 +632,14 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_move_operation(working_map, _), do: working_map
 
-  # Handle element-wise moving within arrays (copy then drop source fields)  
+  # Handle element-wise moving within arrays (copy then drop source fields)
   defp apply_array_element_moving(working_map, array_name, from_fields, to_fields) do
     case Map.get(working_map, array_name) do
       list when is_list(list) ->
         updated_list = Enum.map(list, fn element ->
           case get_nested_value(element, from_fields) do
             nil -> element
-            value -> 
+            value ->
               # Copy to new location and drop from old location
               element
               |> update_at_path(to_fields, fn _ -> value end)
@@ -1277,10 +1277,10 @@ defmodule PolarityReducerEx.DslInterpreter do
     source_values = Enum.map(sources, fn source_path ->
       get_nested_value(working_map, parse_path(source_path))
     end)
-    
+
     # Simple shallow merge of maps
     merged_value = merge_values(source_values)
-    
+
     # Set the merged value at the target path
     put_nested_value(working_map, parse_path(to_path), merged_value)
   end
@@ -1290,7 +1290,7 @@ defmodule PolarityReducerEx.DslInterpreter do
   # Simple merge implementation
   defp merge_values(values) do
     valid_values = Enum.reject(values, &is_nil/1)
-    
+
     case valid_values do
       [] -> nil
       [single_value] -> single_value

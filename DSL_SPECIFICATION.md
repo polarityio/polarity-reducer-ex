@@ -24,6 +24,9 @@ The Polarity Reducer Ex DSL is a JSON-based configuration language for defining 
 - Handle arrays, nested objects, and complex data types
 - Perform date/time operations and formatting
 - Clean up and validate data structures
+- Transform data with built-in functions (uppercase, lowercase, type conversions, etc.)
+- Copy and move data between paths with advanced array support
+- Merge data from multiple sources with flexible strategies
 
 ## DSL Structure
 
@@ -903,4 +906,5 @@ The output section defines how to construct the final result using variable refe
 ## Version History
 
 - **v0.1.0**: Initial release with core operations and date/time support
+- **v0.2.0**: Added transform, copy, move, and merge operations with comprehensive array support
 - **Future**: Additional aggregation functions, conditional operations, custom functions

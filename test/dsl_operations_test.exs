@@ -699,7 +699,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts values to string" do
       data = %{"values" => %{"number" => 42, "boolean" => true, "nil" => nil}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.number", "function" => "string"},
         %{"op" => "transform", "path" => "values.boolean", "function" => "string"},
@@ -717,7 +717,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts strings to numbers" do
       data = %{"values" => %{"integer" => "123", "float" => "45.67", "invalid" => "abc"}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.integer", "function" => "number"},
         %{"op" => "transform", "path" => "values.float", "function" => "number"},
@@ -735,7 +735,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts values to integers" do
       data = %{"values" => %{"string_int" => "456", "float" => 78.9, "string_float" => "12.34"}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string_int", "function" => "integer"},
         %{"op" => "transform", "path" => "values.float", "function" => "integer"},
@@ -753,7 +753,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts values to floats" do
       data = %{"values" => %{"string" => "123.45", "integer" => 67}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "float"},
         %{"op" => "transform", "path" => "values.integer", "function" => "float"}
@@ -777,7 +777,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "false_string" => "false",
         "other" => "anything"
       }}
-      
+
       operations = Enum.map(Map.keys(data["values"]), fn key ->
         %{"op" => "transform", "path" => "values.#{key}", "function" => "boolean"}
       end)
@@ -801,7 +801,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "list" => [1, 2, 3, 4],
         "map" => %{"a" => 1, "b" => 2, "c" => 3}
       }}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "length"},
         %{"op" => "transform", "path" => "values.list", "function" => "length"},
@@ -819,7 +819,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "reverses strings and lists" do
       data = %{"values" => %{"string" => "hello", "list" => [1, 2, 3]}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "reverse"},
         %{"op" => "transform", "path" => "values.list", "function" => "reverse"}
@@ -871,7 +871,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "calculates absolute value of numbers" do
       data = %{"values" => %{"positive" => 5, "negative" => -10, "zero" => 0}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.positive", "function" => "abs"},
         %{"op" => "transform", "path" => "values.negative", "function" => "abs"},
@@ -889,7 +889,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "rounds numbers with precision" do
       data = %{"values" => %{"pi" => 3.14159, "simple" => 2.7}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.pi", "function" => "round", "args" => [2]},
         %{"op" => "transform", "path" => "values.simple", "function" => "round"}
@@ -1283,7 +1283,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
       result = DslInterpreter.apply_move_operation_public(data, operation)
 
-      # When moving between different arrays, it should move the array result  
+      # When moving between different arrays, it should move the array result
       assert Enum.at(result["inventory"], 0)["product_name"] == ["Product A"]
       assert Enum.at(result["products"], 0)["name"] == nil  # original removed
       assert Enum.at(result["products"], 0)["other"] == "keep"  # other fields preserved
