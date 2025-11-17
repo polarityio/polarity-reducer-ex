@@ -239,6 +239,232 @@ Remove empty, null, or unwanted values from the structure.
 }
 ```
 
+#### set
+Set field values to static values or copy from other paths.
+
+**Schema:**
+```json
+{
+  "op": "set",
+  "path": "string",
+  "value": any
+}
+```
+
+**Parameters:**
+- `path`: Path where to set the value
+- `value`: Value to set (static value or path reference)
+
+**Value Types:**
+- **Static values**: Numbers, strings, booleans, objects, arrays
+- **Path references**: `"$path:source.field"` to copy from another field
+
+**Examples:**
+```json
+{
+  "op": "set",
+  "path": "metadata.processed",
+  "value": true
+}
+```
+
+```json
+{
+  "op": "set", 
+  "path": "users[].display_name",
+  "value": "$path:users[].first_name"
+}
+```
+
+```json
+{
+  "op": "set",
+  "path": "summary.stats",
+  "value": {
+    "total_users": 0,
+    "active": false
+  }
+}
+```
+
+#### transform
+Apply transformation functions to field values.
+
+**Schema:**
+```json
+{
+  "op": "transform",
+  "path": "string",
+  "function": "string",
+  "args": ["string", "..."]
+}
+```
+
+**Parameters:**
+- `path`: Path to the field(s) to transform
+- `function`: Transformation function name
+- `args`: Optional array of function arguments
+
+**Supported Functions:**
+
+**String Functions:**
+- `"uppercase"`: Convert to uppercase
+- `"lowercase"`: Convert to lowercase  
+- `"capitalize"`: Capitalize first letter 
+- `"trim"`: Remove leading/trailing whitespace
+- `"reverse"`: Reverse string
+- `"split"`: Split string into array (args: delimiter, default: " ")
+
+**Type Conversion Functions:**
+- `"string"`: Convert to string
+- `"number"`: Convert to number (integer or float)
+- `"integer"`: Convert to integer
+- `"float"`: Convert to float
+- `"boolean"`: Convert to boolean
+
+**Utility Functions:**
+- `"length"`: Get length of string, array, or map
+- `"reverse"`: Reverse string or array
+- `"join"`: Join array into string (args: delimiter, default: " ")
+- `"abs"`: Absolute value of number
+- `"round"`: Round number (args: precision, default: 0)
+
+**Examples:**
+```json
+{
+  "op": "transform",
+  "path": "user.name",
+  "function": "uppercase"
+}
+```
+
+```json
+{
+  "op": "transform", 
+  "path": "users[].email",
+  "function": "lowercase"
+}
+```
+
+```json
+{
+  "op": "transform",
+  "path": "description",
+  "function": "split",
+  "args": [","]
+}
+```
+
+```json
+{
+  "op": "transform",
+  "path": "scores[].value",
+  "function": "round",
+  "args": [2]
+}
+```
+
+#### copy
+Copy values from one path to another without removing the original.
+
+**Schema:**
+```json
+{
+  "op": "copy",
+  "from": "string",
+  "to": "string"
+}
+```
+
+**Parameters:**
+- `from`: Source path to copy from
+- `to`: Destination path to copy to
+
+**Array Behavior:**
+- **Same Array Element-wise**: `users[].email` → `users[].backup_email` copies element by element
+- **Array to Regular**: `users[].name` → `summary.names` copies entire array result
+- **Regular to Array**: `template` → `items[].template` copies value to all array elements
+
+**Examples:**
+```json
+{
+  "op": "copy",
+  "from": "user.email",
+  "to": "backup.user_email"
+}
+```
+
+```json
+{
+  "op": "copy",
+  "from": "users[].name", 
+  "to": "users[].display_name"
+}
+```
+
+```json
+{
+  "op": "copy",
+  "from": "config.default_theme",
+  "to": "users[].theme"
+}
+```
+
+#### move
+Move values from one path to another, removing from the original location (atomic copy + drop).
+
+**Schema:**
+```json
+{
+  "op": "move",
+  "from": "string",
+  "to": "string"
+}
+```
+
+**Parameters:**
+- `from`: Source path to move from (original will be removed)
+- `to`: Destination path to move to
+
+**Array Behavior:**
+- **Same Array Element-wise**: `users[].temp_email` → `users[].email` moves element by element within the same array
+- **Array to Regular**: `users[].name` → `summary.names` moves entire array result and removes original fields
+- **Regular to Array**: `template` → `items[].template` moves value to all array elements and removes original
+- **Cross-Array**: `products[].name` → `inventory[].product_name` moves array result to target and removes original fields
+
+**Examples:**
+```json
+{
+  "op": "move",
+  "from": "user.temp_email",
+  "to": "user.email"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "users[].draft_name",
+  "to": "users[].name"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "config.temp_settings",
+  "to": "items[].settings"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "old_data.users",
+  "to": "migrated.user_list"
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp
@@ -420,45 +646,41 @@ Convert array to map using specified key field.
 ```
 
 #### aggregate_list
-Perform aggregations on array data.
+Perform aggregations on array data using special variables.
 
 **Schema:**
 ```json
 {
   "op": "aggregate_list",
   "path": "string", 
-  "aggregations": {
-    "result_field": {
-      "field": "string",
-      "function": "string"
-    }
+  "shape": {
+    "result_field": "string"
   }
 }
 ```
 
 **Parameters:**
-- `path`: Path to the array
-- `aggregations`: Object defining aggregation operations
+- `path`: Path to the array to aggregate
+- `shape`: Object defining output structure with aggregation variables
 
-**Functions:**
-- `"sum"`: Sum numeric values
-- `"avg"`: Average numeric values  
-- `"min"`: Minimum value
-- `"max"`: Maximum value
-- `"count"`: Count items
+**Supported Aggregation Variables:**
+- `$min(field)`: Find minimum value of specified field across array items
+- `$max(field)`: Find maximum value of specified field across array items
 
 **Example:**
 ```json
 {
   "op": "aggregate_list",
   "path": "orders",
-  "aggregations": {
-    "total_amount": {"field": "amount", "function": "sum"},
-    "avg_amount": {"field": "amount", "function": "avg"},
-    "order_count": {"function": "count"}
+  "shape": {
+    "min_amount": "$min(amount)",
+    "max_amount": "$max(amount)",
+    "description": "Order statistics"
   }
 }
 ```
+
+**Note:** Currently only `$min()` and `$max()` aggregation functions are implemented. The operation replaces the array at the specified path with the aggregated result object.
 
 ## Output Templates
 
@@ -558,17 +780,17 @@ The output section defines how to construct the final result using variable refe
     },
     {
       "op": "aggregate_list",
-      "path": "",
-      "aggregations": {
-        "total_revenue": {"field": "amount", "function": "sum"},
-        "avg_order_value": {"field": "amount", "function": "avg"},
-        "total_orders": {"function": "count"}
+      "path": "orders",
+      "shape": {
+        "min_amount": "$min(amount)",
+        "max_amount": "$max(amount)",
+        "analytics_note": "Limited aggregation functions available"
       }
     }
   ],
   "output": {
     "orders": "$working.orders",
-    "analytics": "$working.aggregations"
+    "analytics": "$working.orders"
   }
 }
 ```

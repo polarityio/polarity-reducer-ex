@@ -136,6 +136,22 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_current_timestamp_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "set"} = operation) do
+    apply_set_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "transform"} = operation) do
+    apply_transform_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "copy"} = operation) do
+    apply_copy_operation(working_map, operation)
+  end
+
+  defp apply_operation(working_map, %{"op" => "move"} = operation) do
+    apply_move_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -280,6 +296,58 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_prune_operation(working_map, _), do: working_map
 
+
+
+  # Handle array-to-array copying specially
+  defp apply_set_operation(working_map, %{"path" => path, "value" => "$path:" <> source_path}) do
+    target_parsed = parse_path(path)
+    source_parsed = parse_path(source_path)
+
+    # Check if both paths are array paths with the same structure
+    case {target_parsed, source_parsed} do
+      # Both are array paths like "users[].display_name" and "users[].first_name"
+      {[array_name, "[]" | target_fields], [same_array_name, "[]" | source_fields]}
+      when array_name == same_array_name ->
+        # Handle element-wise copying within the same array
+        apply_array_element_copying(working_map, array_name, target_fields, source_fields)
+
+      _ ->
+        # Regular path resolution
+        update_at_path(working_map, target_parsed, fn _ ->
+          resolve_set_value(source_path, working_map)
+        end)
+    end
+  end
+
+  # Handle static values and other cases
+  defp apply_set_operation(working_map, %{"path" => path, "value" => value}) do
+    update_at_path(working_map, parse_path(path), fn _ -> value end)
+  end
+
+  defp apply_set_operation(working_map, _), do: working_map
+
+  # Handle element-wise copying within arrays
+  defp apply_array_element_copying(working_map, array_name, target_fields, source_fields) do
+    case Map.get(working_map, array_name) do
+      list when is_list(list) ->
+        updated_list = Enum.map(list, fn element ->
+          case get_nested_value(element, source_fields) do
+            nil -> element
+            value -> update_at_path(element, target_fields, fn _ -> value end)
+          end
+        end)
+        Map.put(working_map, array_name, updated_list)
+
+      _ ->
+        working_map
+    end
+  end
+
+  # Regular resolve function for non-array cases
+  defp resolve_set_value(source_path, working_map) do
+    get_nested_value(working_map, parse_path(source_path))
+  end
+
   # Rename operation: renames fields according to mapping
   defp apply_rename_operation(working_map, %{"mapping" => mapping}) when is_map(mapping) do
     Enum.reduce(mapping, working_map, fn {from_path, to_path}, acc ->
@@ -350,6 +418,235 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_current_timestamp_operation(working_map, _), do: working_map
 
+  # Transform operation: applies transformation functions to field values
+  defp apply_transform_operation(working_map, %{"path" => path, "function" => function} = operation) do
+    args = Map.get(operation, "args", [])
+    
+    update_at_path(working_map, parse_path(path), fn value ->
+      apply_transform_function(value, function, args)
+    end)
+  end
+
+  defp apply_transform_operation(working_map, _), do: working_map
+
+  # Apply transformation functions to values
+  defp apply_transform_function(value, "uppercase", _args) when is_binary(value) do
+    String.upcase(value)
+  end
+
+  defp apply_transform_function(value, "lowercase", _args) when is_binary(value) do
+    String.downcase(value)
+  end
+
+  defp apply_transform_function(value, "capitalize", _args) when is_binary(value) do
+    String.capitalize(value)
+  end
+
+  defp apply_transform_function(value, "trim", _args) when is_binary(value) do
+    String.trim(value)
+  end
+
+  defp apply_transform_function(value, "string", _args) do
+    cond do
+      is_binary(value) -> value
+      is_number(value) -> to_string(value)
+      is_boolean(value) -> to_string(value)
+      is_nil(value) -> ""
+      is_atom(value) -> Atom.to_string(value)
+      true -> inspect(value)
+    end
+  end
+
+  defp apply_transform_function(value, "number", _args) when is_binary(value) do
+    case Float.parse(value) do
+      {num, ""} -> 
+        # Check if it's actually an integer
+        if trunc(num) == num do
+          trunc(num)
+        else
+          num
+        end
+      {num, _} -> num
+      :error -> 
+        case Integer.parse(value) do
+          {int, ""} -> int
+          {int, _} -> int
+          :error -> nil
+        end
+    end
+  end
+
+  defp apply_transform_function(value, "number", _args) when is_number(value), do: value
+  defp apply_transform_function(_value, "number", _args), do: nil
+
+  defp apply_transform_function(value, "integer", _args) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      {int, _} -> int
+      :error -> nil
+    end
+  end
+
+  defp apply_transform_function(value, "integer", _args) when is_integer(value), do: value
+  defp apply_transform_function(value, "integer", _args) when is_float(value), do: trunc(value)
+  defp apply_transform_function(_value, "integer", _args), do: nil
+
+  defp apply_transform_function(value, "float", _args) when is_binary(value) do
+    case Float.parse(value) do
+      {float, ""} -> float
+      {float, _} -> float
+      :error -> nil
+    end
+  end
+
+  defp apply_transform_function(value, "float", _args) when is_float(value), do: value
+  defp apply_transform_function(value, "float", _args) when is_integer(value), do: value * 1.0
+  defp apply_transform_function(_value, "float", _args), do: nil
+
+  defp apply_transform_function(value, "boolean", _args) do
+    case value do
+      true -> true
+      false -> false
+      nil -> false
+      "" -> false
+      0 -> false
+      0.0 -> false
+      "false" -> false
+      "False" -> false
+      "FALSE" -> false
+      "0" -> false
+      _ -> true
+    end
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_binary(value) do
+    String.length(value)
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_list(value) do
+    length(value)
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_map(value) do
+    map_size(value)
+  end
+
+  defp apply_transform_function(_value, "length", _args), do: nil
+
+  defp apply_transform_function(value, "reverse", _args) when is_binary(value) do
+    String.reverse(value)
+  end
+
+  defp apply_transform_function(value, "reverse", _args) when is_list(value) do
+    Enum.reverse(value)
+  end
+
+  defp apply_transform_function(value, "reverse", _args), do: value
+
+  defp apply_transform_function(value, "split", args) when is_binary(value) and is_list(args) do
+    delimiter = List.first(args) || " "
+    String.split(value, delimiter)
+  end
+
+  defp apply_transform_function(value, "split", _args), do: value
+
+  defp apply_transform_function(value, "join", args) when is_list(value) and is_list(args) do
+    delimiter = List.first(args) || " "
+    Enum.join(value, delimiter)
+  end
+
+  defp apply_transform_function(value, "join", _args), do: value
+
+  defp apply_transform_function(value, "abs", _args) when is_number(value) do
+    abs(value)
+  end
+
+  defp apply_transform_function(value, "abs", _args), do: value
+
+  defp apply_transform_function(value, "round", args) when is_number(value) do
+    precision = case args do
+      [p] when is_integer(p) -> p
+      _ -> 0
+    end
+    Float.round(value * 1.0, precision)
+  end
+
+  defp apply_transform_function(value, "round", _args), do: value
+
+  # Default case - return original value if function not recognized
+  defp apply_transform_function(value, _function, _args), do: value
+
+  # Copy operation: copies values from one path to another
+  defp apply_copy_operation(working_map, %{"from" => from_path, "to" => to_path}) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+    
+    # Check if both paths are array paths with the same structure for element-wise copying
+    case {from_parsed, to_parsed} do
+      # Both are array paths like "users[].email" and "users[].backup_email"
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      when array_name == same_array_name ->
+        # Handle element-wise copying within the same array
+        apply_array_element_copying(working_map, array_name, to_fields, from_fields)
+      
+      # Different arrays or regular paths
+      _ ->
+        # Get the source value
+        source_value = get_nested_value(working_map, from_parsed)
+        # Set it at the target path
+        put_nested_value(working_map, to_parsed, source_value)
+    end
+  end
+
+  defp apply_copy_operation(working_map, _), do: working_map
+
+  # Move operation: moves values from one path to another (copy + drop in one atomic operation)
+  defp apply_move_operation(working_map, %{"from" => from_path, "to" => to_path}) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+    
+    # Check if both paths are array paths with the same structure for element-wise moving
+    case {from_parsed, to_parsed} do
+      # Both are array paths like "users[].old_email" and "users[].new_email"
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      when array_name == same_array_name ->
+        # Handle element-wise moving within the same array
+        apply_array_element_moving(working_map, array_name, from_fields, to_fields)
+      
+      # Different arrays or regular paths
+      _ ->
+        # Get the source value
+        source_value = get_nested_value(working_map, from_parsed)
+        # Set it at the target path
+        updated_map = put_nested_value(working_map, to_parsed, source_value)
+        # Remove it from the source path
+        drop_at_path(updated_map, from_parsed)
+    end
+  end
+
+  defp apply_move_operation(working_map, _), do: working_map
+
+  # Handle element-wise moving within arrays (copy then drop source fields)  
+  defp apply_array_element_moving(working_map, array_name, from_fields, to_fields) do
+    case Map.get(working_map, array_name) do
+      list when is_list(list) ->
+        updated_list = Enum.map(list, fn element ->
+          case get_nested_value(element, from_fields) do
+            nil -> element
+            value -> 
+              # Copy to new location and drop from old location
+              element
+              |> update_at_path(to_fields, fn _ -> value end)
+              |> drop_at_path(from_fields)
+          end
+        end)
+        Map.put(working_map, array_name, updated_list)
+
+      _ ->
+        working_map
+    end
+  end
+
   # ===== PATH UTILITIES =====
 
   # Parse a string path into a list of components, handling [] wildcards
@@ -397,7 +694,7 @@ defmodule PolarityReducerEx.DslInterpreter do
   # Update a nested value using a function with wildcard support
   defp update_at_path(map, [], func), do: func.(map)
   defp update_at_path(map, [key], func) when is_map(map) do
-    Map.update(map, key, nil, func)
+    Map.update(map, key, func.(nil), func)
   end
   defp update_at_path(map, [key | rest], func) when is_map(map) do
     current = Map.get(map, key, %{})
@@ -502,6 +799,9 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp perform_suffix_rename(data, _, _), do: data
 
   # ===== HELPER FUNCTIONS =====
+
+  # Resolve a set value - can be a static value or a path reference
+
 
   # Project data using a mapping configuration
   defp project_data(source_data, mapping) when is_list(source_data) and is_map(mapping) do
@@ -911,6 +1211,11 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   @doc false
+  def apply_set_operation_public(working_map, operation) do
+    apply_set_operation(working_map, operation)
+  end
+
+  @doc false
   def apply_prune_operation_public(working_map, operation) do
     apply_prune_operation(working_map, operation)
   end
@@ -943,6 +1248,21 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_current_timestamp_operation_public(working_map, operation) do
     apply_current_timestamp_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_transform_operation_public(working_map, operation) do
+    apply_transform_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_copy_operation_public(working_map, operation) do
+    apply_copy_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_move_operation_public(working_map, operation) do
+    apply_move_operation(working_map, operation)
   end
 
   @doc false
