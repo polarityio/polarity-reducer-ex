@@ -465,6 +465,52 @@ Move values from one path to another, removing from the original location (atomi
 }
 ```
 
+#### merge
+Combine values from multiple source paths into a single target location. Only performs shallow merges of maps.
+
+**Schema:**
+```json
+{
+  "op": "merge",
+  "sources": ["string"],
+  "to": "string"
+}
+```
+
+**Parameters:**
+- `sources`: Array of source paths to merge from
+- `to`: Destination path for the merged result
+
+**Merge Behavior:**
+- **Maps**: Merges all map objects using shallow merge (last wins for conflicting keys)
+- **Non-Maps**: Returns the last non-nil value (arrays, strings, numbers, etc.)
+- **Nil Handling**: Ignores nil and missing sources
+
+**Examples:**
+```json
+{
+  "op": "merge",
+  "sources": ["config.defaults", "config.overrides"],
+  "to": "config.final"
+}
+```
+
+```json
+{
+  "op": "merge",
+  "sources": ["user.profile", "user.preferences", "user.settings"],
+  "to": "user.merged_config"
+}
+```
+
+```json
+{
+  "op": "merge",
+  "sources": ["source1", "source2", "source3"],
+  "to": "target.combined"
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp

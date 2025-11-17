@@ -152,6 +152,12 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_move_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "merge"} = operation) do
+    apply_merge_operation(working_map, operation)
+  end
+
+
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -1264,6 +1270,44 @@ defmodule PolarityReducerEx.DslInterpreter do
   def apply_move_operation_public(working_map, operation) do
     apply_move_operation(working_map, operation)
   end
+
+  # Merge operation - combines objects or arrays from multiple paths
+  defp apply_merge_operation(working_map, %{"sources" => sources, "to" => to_path}) when is_list(sources) do
+    # Collect values from all source paths
+    source_values = Enum.map(sources, fn source_path ->
+      get_nested_value(working_map, parse_path(source_path))
+    end)
+    
+    # Simple shallow merge of maps
+    merged_value = merge_values(source_values)
+    
+    # Set the merged value at the target path
+    put_nested_value(working_map, parse_path(to_path), merged_value)
+  end
+
+  defp apply_merge_operation(working_map, _), do: working_map
+
+  # Simple merge implementation
+  defp merge_values(values) do
+    valid_values = Enum.reject(values, &is_nil/1)
+    
+    case valid_values do
+      [] -> nil
+      [single_value] -> single_value
+      multiple_values ->
+        if Enum.all?(multiple_values, &is_map/1) do
+          Enum.reduce(multiple_values, %{}, &Map.merge(&2, &1))
+        else
+          List.last(multiple_values)  # For non-maps, return the last valid value
+        end
+    end
+  end
+
+  def apply_merge_operation_public(working_map, operation) do
+    apply_merge_operation(working_map, operation)
+  end
+
+
 
   @doc false
   def apply_operation_public(working_map, operation) do

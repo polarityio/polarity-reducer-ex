@@ -1338,4 +1338,166 @@ defmodule PolarityReducerEx.DslOperationsTest do
       assert result == data  # unchanged
     end
   end
+
+  describe "merge operation" do
+    test "shallow merges multiple objects" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "source2" => %{"email" => "john@example.com", "city" => "NYC"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+      assert result["target"]["merged"]["email"] == "john@example.com"
+      assert result["target"]["merged"]["city"] == "NYC"
+    end
+
+    test "shallow merge with conflicting keys (last wins)" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "source2" => %{"name" => "Jane", "email" => "jane@example.com"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "Jane"  # last wins
+      assert result["target"]["merged"]["age"] == 30
+      assert result["target"]["merged"]["email"] == "jane@example.com"
+    end
+
+    test "handles nil sources" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "source2" => nil,
+        "source3" => %{"age" => 30},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2", "source3"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+    end
+
+    test "handles non-existent source paths" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "nonexistent.path"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+    end
+
+    test "returns single value when only one valid source" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+    end
+
+    test "returns nil when all sources are nil or missing" do
+      data = %{
+        "source1" => nil,
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "nonexistent"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"] == nil
+    end
+
+    test "handles mixed data types with shallow merge (last wins)" do
+      data = %{
+        "source1" => %{"data" => [1, 2, 3]},
+        "source2" => %{"data" => "string_value"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"]["data"] == "string_value"  # last wins
+    end
+
+    test "handles arrays as non-map values (last wins)" do
+      data = %{
+        "source1" => ["a", "b"],
+        "source2" => ["c", "d"],
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"] == ["c", "d"]  # last wins for non-maps
+    end
+
+    test "merges into deeply nested target path" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "source2" => %{"age" => 30},
+        "target" => %{"deep" => %{"nested" => %{}}}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.deep.nested.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      merged = get_in(result, ["target", "deep", "nested", "merged"])
+      assert merged["name"] == "John"
+      assert merged["age"] == 30
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge"}  # missing required parameters
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing sources parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge", "to" => "target"}  # missing sources
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing to parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge", "sources" => ["test"]}  # missing to
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles empty sources array" do
+      data = %{"target" => %{}}
+      operation = %{"op" => "merge", "sources" => [], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_merge_operation_public(data, operation)
+
+      assert result["target"]["merged"] == nil
+    end
+  end
 end
