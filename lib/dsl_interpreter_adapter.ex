@@ -1,4 +1,4 @@
-defmodule DslInterpreterAdapter do
+defmodule PolarityReducerEx.DslInterpreterAdapter do
   @moduledoc """
   Adapter module that wraps the original DslInterpreter for compatibility with external testing SDKs.
 
@@ -13,6 +13,8 @@ defmodule DslInterpreterAdapter do
       # Use for step-by-step execution (simulated)
       result = DslInterpreterAdapter.execute_with_steps(data, dsl_config)
   """
+
+  alias PolarityReducerEx.DslInterpreter
 
   def execute(data, dsl_config) do
     # Delegate to the original DslInterpreter

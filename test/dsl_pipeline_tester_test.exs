@@ -1,6 +1,8 @@
-defmodule DslPipelineTesterTest do
+defmodule PolarityReducerEx.DslPipelineTesterTest do
   use ExUnit.Case
-  doctest DslPipelineTester
+
+  alias PolarityReducerEx.DslPipelineTester
+  doctest PolarityReducerEx.DslPipelineTester
 
   describe "test_pipeline_direct/3" do
     test "executes a simple pipeline successfully" do

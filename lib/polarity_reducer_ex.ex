@@ -3,16 +3,7 @@ defmodule PolarityReducerEx do
   Documentation for `PolarityReducerEx`.
   """
 
-  @doc """
-  Hello world.
+  @callback execute(data :: map(), dsl_config :: map()) :: any()
+  @callback execute_with_steps(data :: map(), dsl_config :: map()) :: map()
 
-  ## Examples
-
-      iex> PolarityReducerEx.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end
