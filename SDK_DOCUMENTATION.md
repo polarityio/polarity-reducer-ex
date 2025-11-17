@@ -15,6 +15,13 @@ The `DslPipelineTester` module provides developers with powerful tools to:
 
 ## Quick Start
 
+Grab the docker web interface for easy testing and visualization:
+
+```bash
+docker pull 623071050687.dkr.ecr.us-east-1.amazonaws.com/polarity-aws-dev/reducer-pipeline-tester:latest
+docker run -p 4000:4000 623071050687.dkr.ecr.us-east-1.amazonaws.com/polarity-aws-dev/reducer-pipeline-tester:latest
+```
+
 ### Basic Usage
 
 ```elixir

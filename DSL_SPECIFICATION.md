@@ -420,45 +420,41 @@ Convert array to map using specified key field.
 ```
 
 #### aggregate_list
-Perform aggregations on array data.
+Perform aggregations on array data using special variables.
 
 **Schema:**
 ```json
 {
   "op": "aggregate_list",
   "path": "string", 
-  "aggregations": {
-    "result_field": {
-      "field": "string",
-      "function": "string"
-    }
+  "shape": {
+    "result_field": "string"
   }
 }
 ```
 
 **Parameters:**
-- `path`: Path to the array
-- `aggregations`: Object defining aggregation operations
+- `path`: Path to the array to aggregate
+- `shape`: Object defining output structure with aggregation variables
 
-**Functions:**
-- `"sum"`: Sum numeric values
-- `"avg"`: Average numeric values  
-- `"min"`: Minimum value
-- `"max"`: Maximum value
-- `"count"`: Count items
+**Supported Aggregation Variables:**
+- `$min(field)`: Find minimum value of specified field across array items
+- `$max(field)`: Find maximum value of specified field across array items
 
 **Example:**
 ```json
 {
   "op": "aggregate_list",
   "path": "orders",
-  "aggregations": {
-    "total_amount": {"field": "amount", "function": "sum"},
-    "avg_amount": {"field": "amount", "function": "avg"},
-    "order_count": {"function": "count"}
+  "shape": {
+    "min_amount": "$min(amount)",
+    "max_amount": "$max(amount)",
+    "description": "Order statistics"
   }
 }
 ```
+
+**Note:** Currently only `$min()` and `$max()` aggregation functions are implemented. The operation replaces the array at the specified path with the aggregated result object.
 
 ## Output Templates
 
@@ -558,17 +554,17 @@ The output section defines how to construct the final result using variable refe
     },
     {
       "op": "aggregate_list",
-      "path": "",
-      "aggregations": {
-        "total_revenue": {"field": "amount", "function": "sum"},
-        "avg_order_value": {"field": "amount", "function": "avg"},
-        "total_orders": {"function": "count"}
+      "path": "orders",
+      "shape": {
+        "min_amount": "$min(amount)",
+        "max_amount": "$max(amount)",
+        "analytics_note": "Limited aggregation functions available"
       }
     }
   ],
   "output": {
     "orders": "$working.orders",
-    "analytics": "$working.aggregations"
+    "analytics": "$working.orders"
   }
 }
 ```
