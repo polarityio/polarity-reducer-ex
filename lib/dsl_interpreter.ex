@@ -152,6 +152,12 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_move_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "merge"} = operation) do
+    apply_merge_operation(working_map, operation)
+  end
+
+
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -345,7 +351,17 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   # Regular resolve function for non-array cases
   defp resolve_set_value(source_path, working_map) do
-    get_nested_value(working_map, parse_path(source_path))
+    case String.ends_with?(source_path, ".length") do
+      true ->
+        array_path = String.trim_trailing(source_path, ".length")
+        case get_nested_value(working_map, parse_path(array_path)) do
+          list when is_list(list) -> length(list)
+          nil -> 0
+          _ -> 1  # Non-list, non-nil values count as 1
+        end
+      false ->
+        get_nested_value(working_map, parse_path(source_path))
+    end
   end
 
   # Rename operation: renames fields according to mapping
@@ -421,7 +437,7 @@ defmodule PolarityReducerEx.DslInterpreter do
   # Transform operation: applies transformation functions to field values
   defp apply_transform_operation(working_map, %{"path" => path, "function" => function} = operation) do
     args = Map.get(operation, "args", [])
-    
+
     update_at_path(working_map, parse_path(path), fn value ->
       apply_transform_function(value, function, args)
     end)
@@ -459,7 +475,7 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_transform_function(value, "number", _args) when is_binary(value) do
     case Float.parse(value) do
-      {num, ""} -> 
+      {num, ""} ->
         # Check if it's actually an integer
         if trunc(num) == num do
           trunc(num)
@@ -467,7 +483,7 @@ defmodule PolarityReducerEx.DslInterpreter do
           num
         end
       {num, _} -> num
-      :error -> 
+      :error ->
         case Integer.parse(value) do
           {int, ""} -> int
           {int, _} -> int
@@ -580,15 +596,15 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp apply_copy_operation(working_map, %{"from" => from_path, "to" => to_path}) do
     from_parsed = parse_path(from_path)
     to_parsed = parse_path(to_path)
-    
+
     # Check if both paths are array paths with the same structure for element-wise copying
     case {from_parsed, to_parsed} do
       # Both are array paths like "users[].email" and "users[].backup_email"
-      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]}
       when array_name == same_array_name ->
         # Handle element-wise copying within the same array
         apply_array_element_copying(working_map, array_name, to_fields, from_fields)
-      
+
       # Different arrays or regular paths
       _ ->
         # Get the source value
@@ -604,15 +620,15 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp apply_move_operation(working_map, %{"from" => from_path, "to" => to_path}) do
     from_parsed = parse_path(from_path)
     to_parsed = parse_path(to_path)
-    
+
     # Check if both paths are array paths with the same structure for element-wise moving
     case {from_parsed, to_parsed} do
       # Both are array paths like "users[].old_email" and "users[].new_email"
-      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]}
       when array_name == same_array_name ->
         # Handle element-wise moving within the same array
         apply_array_element_moving(working_map, array_name, from_fields, to_fields)
-      
+
       # Different arrays or regular paths
       _ ->
         # Get the source value
@@ -626,14 +642,14 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_move_operation(working_map, _), do: working_map
 
-  # Handle element-wise moving within arrays (copy then drop source fields)  
+  # Handle element-wise moving within arrays (copy then drop source fields)
   defp apply_array_element_moving(working_map, array_name, from_fields, to_fields) do
     case Map.get(working_map, array_name) do
       list when is_list(list) ->
         updated_list = Enum.map(list, fn element ->
           case get_nested_value(element, from_fields) do
             nil -> element
-            value -> 
+            value ->
               # Copy to new location and drop from old location
               element
               |> update_at_path(to_fields, fn _ -> value end)
@@ -656,9 +672,15 @@ defmodule PolarityReducerEx.DslInterpreter do
     path
     |> String.split(".")
     |> Enum.flat_map(fn segment ->
-      case String.contains?(segment, "[]") do
-        true -> String.split(segment, "[]", trim: true) ++ ["[]"]
-        false -> [segment]
+      cond do
+        String.contains?(segment, "[]") ->
+          String.split(segment, "[]", trim: true) ++ ["[]"]
+        Regex.match?(~r/^(.+)\[(\d+)\]$/, segment) ->
+          # Handle array index notation like "cvssMetricV31[0]"
+          [_full, base, index] = Regex.run(~r/^(.+)\[(\d+)\]$/, segment)
+          [base, "[#{index}]"]
+        true ->
+          [segment]
       end
     end)
     |> Enum.reject(&(&1 == ""))
@@ -675,6 +697,14 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp get_nested_value(list, ["[]" | rest]) when is_list(list) do
     Enum.map(list, &get_nested_value(&1, rest))
   end
+  defp get_nested_value(list, ["[" <> index_str | rest]) when is_list(list) do
+    # Handle specific array indices like "[0]", "[1]", etc.
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> nil
+      item -> get_nested_value(item, rest)
+    end
+  end
   defp get_nested_value(_, _), do: nil
 
   # Put a nested value using a parsed path with wildcard support
@@ -689,6 +719,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp put_nested_value(list, ["[]" | rest], value) when is_list(list) do
     Enum.map(list, &put_nested_value(&1, rest, value))
   end
+  defp put_nested_value(list, ["[" <> index_str | rest], value) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item ->
+        updated_item = put_nested_value(item, rest, value)
+        List.replace_at(list, index, updated_item)
+    end
+  end
   defp put_nested_value(data, _, _), do: data
 
   # Update a nested value using a function with wildcard support
@@ -702,6 +742,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
   defp update_at_path(list, ["[]" | rest], func) when is_list(list) do
     Enum.map(list, &update_at_path(&1, rest, func))
+  end
+  defp update_at_path(list, ["[" <> index_str | rest], func) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item ->
+        updated_item = update_at_path(item, rest, func)
+        List.replace_at(list, index, updated_item)
+    end
   end
   defp update_at_path(data, _, _), do: data
 
@@ -718,6 +768,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
   defp drop_at_path(list, ["[]" | rest]) when is_list(list) do
     Enum.map(list, &drop_at_path(&1, rest))
+  end
+  defp drop_at_path(list, ["[" <> index_str | rest]) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item ->
+        updated_item = drop_at_path(item, rest)
+        List.replace_at(list, index, updated_item)
+    end
   end
   defp drop_at_path(data, _), do: data
 
@@ -1166,107 +1226,51 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   @doc false
-  def apply_drop_operation_public(working_map, operation) do
-    apply_drop_operation(working_map, operation)
+  # Merge operation - combines objects or arrays from multiple paths
+  defp apply_merge_operation(working_map, %{"sources" => sources, "to" => to_path}) when is_list(sources) do
+    # Collect values from all source paths
+    source_values = Enum.map(sources, fn source_path ->
+      get_nested_value(working_map, parse_path(source_path))
+    end)
+
+    # Simple shallow merge of maps
+    merged_value = merge_values(source_values)
+
+    # Set the merged value at the target path
+    put_nested_value(working_map, parse_path(to_path), merged_value)
   end
 
-  @doc false
-  def apply_project_operation_public(working_map, operation) do
-    apply_project_operation(working_map, operation)
-  end
+  defp apply_merge_operation(working_map, _), do: working_map
 
-  @doc false
-  def apply_project_and_replace_operation_public(working_map, operation) do
-    apply_project_and_replace_operation(working_map, operation)
-  end
+  # Simple merge implementation
+  defp merge_values(values) do
+    valid_values = Enum.reject(values, &is_nil/1)
 
-  @doc false
-  def apply_hoist_map_values_operation_public(working_map, operation) do
-    apply_hoist_map_values_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_list_to_map_operation_public(working_map, operation) do
-    apply_list_to_map_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_list_to_dynamic_map_operation_public(working_map, operation) do
-    apply_list_to_dynamic_map_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_promote_list_to_keys_operation_public(working_map, operation) do
-    apply_promote_list_to_keys_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_truncate_list_operation_public(working_map, operation) do
-    apply_truncate_list_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_aggregate_list_operation_public(working_map, operation) do
-    apply_aggregate_list_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_set_operation_public(working_map, operation) do
-    apply_set_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_prune_operation_public(working_map, operation) do
-    apply_prune_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_rename_operation_public(working_map, operation) do
-    apply_rename_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_format_date_operation_public(working_map, operation) do
-    apply_format_date_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_parse_date_operation_public(working_map, operation) do
-    apply_parse_date_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_date_add_operation_public(working_map, operation) do
-    apply_date_add_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_date_diff_operation_public(working_map, operation) do
-    apply_date_diff_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_current_timestamp_operation_public(working_map, operation) do
-    apply_current_timestamp_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_transform_operation_public(working_map, operation) do
-    apply_transform_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_copy_operation_public(working_map, operation) do
-    apply_copy_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_move_operation_public(working_map, operation) do
-    apply_move_operation(working_map, operation)
+    case valid_values do
+      [] -> nil
+      [single_value] -> single_value
+      multiple_values ->
+        if Enum.all?(multiple_values, &is_map/1) do
+          Enum.reduce(multiple_values, %{}, &Map.merge(&2, &1))
+        else
+          List.last(multiple_values)  # For non-maps, return the last valid value
+        end
+    end
   end
 
   @doc false
   def apply_operation_public(working_map, operation) do
     apply_operation(working_map, operation)
+  end
+
+  @doc false
+  def parse_path_public(path) do
+    parse_path(path)
+  end
+
+  @doc false
+  def get_nested_value_public(data, path) do
+    parsed_path = parse_path(path)
+    get_nested_value(data, parsed_path)
   end
 end

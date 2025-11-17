@@ -13,7 +13,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"keep" => "value", "remove" => "unwanted"}
       operation = %{"op" => "drop", "paths" => ["remove"]}
 
-      result = DslInterpreter.apply_drop_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"keep" => "value"}
     end
@@ -22,7 +22,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"a" => 1, "b" => 2, "c" => 3, "d" => 4}
       operation = %{"op" => "drop", "paths" => ["b", "d"]}
 
-      result = DslInterpreter.apply_drop_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"a" => 1, "c" => 3}
     end
@@ -37,7 +37,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "drop", "paths" => ["user.email", "user.internal.debug"]}
 
-      result = DslInterpreter.apply_drop_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{
         "user" => %{
@@ -56,7 +56,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "drop", "paths" => ["users[].secret"]}
 
-      result = DslInterpreter.apply_drop_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{
         "users" => [
@@ -70,7 +70,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"keep" => "value"}
       operation = %{"op" => "drop", "paths" => ["nonexistent", "also.missing"]}
 
-      result = DslInterpreter.apply_drop_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"keep" => "value"}
     end
@@ -81,7 +81,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"old_name" => "value", "other" => "data"}
       operation = %{"op" => "rename", "mapping" => %{"old_name" => "new_name"}}
 
-      result = DslInterpreter.apply_rename_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"new_name" => "value", "other" => "data"}
     end
@@ -99,7 +99,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         }
       }
 
-      result = DslInterpreter.apply_rename_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{
         "user" => %{"firstName" => "John", "last_name" => "Doe"},
@@ -119,7 +119,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "mapping" => %{"events[].user_id" => "events[].userId"}
       }
 
-      result = DslInterpreter.apply_rename_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{
         "events" => [
@@ -136,7 +136,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "mapping" => %{"nonexistent" => "new_name", "existing" => "renamed"}
       }
 
-      result = DslInterpreter.apply_rename_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"renamed" => "value"}
     end
@@ -148,7 +148,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "mapping" => %{"a" => "alpha", "b" => "beta", "c" => "gamma"}
       }
 
-      result = DslInterpreter.apply_rename_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"alpha" => 1, "beta" => 2, "gamma" => 3}
     end
@@ -173,7 +173,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         }
       }
 
-      result = DslInterpreter.apply_project_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       expected = %{
         "users" => [
@@ -204,7 +204,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         }
       }
 
-      result = DslInterpreter.apply_project_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       expected = %{
         "response" => %{
@@ -222,7 +222,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"keep" => "value", "remove" => nil, "nested" => %{"keep" => 1, "remove" => nil}}
       operation = %{"op" => "prune", "strategy" => "empty_values"}
 
-      result = DslInterpreter.apply_prune_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"keep" => "value", "nested" => %{"keep" => 1}}
     end
@@ -231,7 +231,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"keep" => "value", "remove" => "", "nested" => %{"keep" => "text", "remove" => ""}}
       operation = %{"op" => "prune", "strategy" => "empty_values"}
 
-      result = DslInterpreter.apply_prune_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{"keep" => "value", "nested" => %{"keep" => "text"}}
     end
@@ -249,7 +249,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "prune", "strategy" => "empty_values"}
 
-      result = DslInterpreter.apply_prune_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == %{
         "keep" => "value",
@@ -270,7 +270,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "iso8601"
       }
 
-      result = DslInterpreter.apply_current_timestamp_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Map.has_key?(result, "timestamp")
       assert result["existing"] == "data"
@@ -289,7 +289,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "human"
       }
 
-      result = DslInterpreter.apply_current_timestamp_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       timestamp = result["created_at"]
       assert is_binary(timestamp)
@@ -304,7 +304,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "iso8601"
       }
 
-      result = DslInterpreter.apply_current_timestamp_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert get_in(result, ["metadata", "processed_at"]) != nil
       assert result["metadata"]["version"] == "1.0"
@@ -320,7 +320,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "human"
       }
 
-      result = DslInterpreter.apply_format_date_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["created_at"] == "2024-01-15 10:30:00 UTC"
     end
@@ -333,7 +333,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "date_only"
       }
 
-      result = DslInterpreter.apply_format_date_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["created_at"] == "2024-01-15"
     end
@@ -351,7 +351,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "date_only"
       }
 
-      result = DslInterpreter.apply_format_date_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       expected_events = [
         %{"timestamp" => "2024-01-15"},
@@ -369,7 +369,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "format" => "human"
       }
 
-      result = DslInterpreter.apply_format_date_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["invalid_date"] == "not-a-date"  # Should preserve original
     end
@@ -386,7 +386,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "output_format" => "date_only"
       }
 
-      result = DslInterpreter.apply_date_add_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["start_date"] == "2024-01-22"
     end
@@ -401,7 +401,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "output_format" => "date_only"
       }
 
-      result = DslInterpreter.apply_date_add_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       # Should be approximately 2025-03-16 (35 years later)
       assert String.starts_with?(result["birth_date"], "2025-03")
@@ -417,7 +417,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "output_format" => "iso8601"
       }
 
-      result = DslInterpreter.apply_date_add_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert String.contains?(result["event_time"], "T13:00:00")
     end
@@ -437,7 +437,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "unit" => "days"
       }
 
-      result = DslInterpreter.apply_date_diff_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["duration_days"] == 5.0
       assert result["start_date"] == "2024-01-15T10:00:00Z"  # Original preserved
@@ -457,7 +457,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "unit" => "hours"
       }
 
-      result = DslInterpreter.apply_date_diff_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["session_hours"] == 8.5
     end
@@ -475,7 +475,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "unit" => "days"
       }
 
-      result = DslInterpreter.apply_date_diff_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["duration"] == nil
     end
@@ -525,7 +525,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
       # Test drop with deep nesting
       drop_op = %{"op" => "drop", "paths" => ["level1.level2.level3.level4.target"]}
-      result = DslInterpreter.apply_drop_operation_public(data, drop_op)
+      result = DslInterpreter.apply_operation_public(data, drop_op)
 
       assert get_in(result, ["level1", "level2", "level3", "level4", "target"]) == nil
       assert get_in(result, ["level1", "level2", "level3", "level4", "other"]) == "keep_me"
@@ -537,7 +537,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"name" => "John"}}
       operation = %{"op" => "set", "path" => "user.status", "value" => "active"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["status"] == "active"
       assert result["user"]["name"] == "John"  # original data preserved
@@ -547,7 +547,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"counters" => %{}}
       operation = %{"op" => "set", "path" => "counters.total", "value" => 42}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["counters"]["total"] == 42
     end
@@ -556,7 +556,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"flags" => %{}}
       operation = %{"op" => "set", "path" => "flags.enabled", "value" => true}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["flags"]["enabled"] == true
     end
@@ -565,7 +565,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"config" => %{}}
       operation = %{"op" => "set", "path" => "config.database", "value" => %{"host" => "localhost", "port" => 5432}}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["config"]["database"]["host"] == "localhost"
       assert result["config"]["database"]["port"] == 5432
@@ -575,7 +575,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"name" => "John"}, "target" => %{}}
       operation = %{"op" => "set", "path" => "target.display_name", "value" => "$path:source.name"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["display_name"] == "John"
       assert result["source"]["name"] == "John"  # original preserved
@@ -588,7 +588,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "set", "path" => "metadata.author", "value" => "$path:user.profile.full_name"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["metadata"]["author"] == "John Doe"
     end
@@ -597,7 +597,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}]}
       operation = %{"op" => "set", "path" => "users[].active", "value" => true}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.all?(result["users"], fn user -> user["active"] == true end)
       assert Enum.at(result["users"], 0)["name"] == "John"
@@ -608,7 +608,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"first_name" => "John"}, %{"first_name" => "Jane"}]}
       operation = %{"op" => "set", "path" => "users[].display_name", "value" => "$path:users[].first_name"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["users"], 0)["display_name"] == "John"
       assert Enum.at(result["users"], 1)["display_name"] == "Jane"
@@ -618,7 +618,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"status" => "inactive"}}
       operation = %{"op" => "set", "path" => "user.status", "value" => "active"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["status"] == "active"
     end
@@ -627,7 +627,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{}
       operation = %{"op" => "set", "path" => "deeply.nested.value", "value" => "created"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert get_in(result, ["deeply", "nested", "value"]) == "created"
     end
@@ -636,7 +636,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"missing" => nil}, "target" => %{}}
       operation = %{"op" => "set", "path" => "target.copied", "value" => "$path:source.missing"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["copied"] == nil
     end
@@ -645,7 +645,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{}, "target" => %{}}
       operation = %{"op" => "set", "path" => "target.copied", "value" => "$path:source.nonexistent"}
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["copied"] == nil
     end
@@ -654,7 +654,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "set"}  # missing required parameters
 
-      result = DslInterpreter.apply_set_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -665,7 +665,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"name" => "john doe"}}
       operation = %{"op" => "transform", "path" => "user.name", "function" => "uppercase"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["name"] == "JOHN DOE"
     end
@@ -674,7 +674,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"name" => "JANE SMITH"}}
       operation = %{"op" => "transform", "path" => "user.name", "function" => "lowercase"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["name"] == "jane smith"
     end
@@ -683,7 +683,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"name" => "alice wonderland"}}
       operation = %{"op" => "transform", "path" => "user.name", "function" => "capitalize"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["name"] == "Alice wonderland"
     end
@@ -692,14 +692,14 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"user" => %{"name" => "  bob builder  "}}
       operation = %{"op" => "transform", "path" => "user.name", "function" => "trim"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["user"]["name"] == "bob builder"
     end
 
     test "converts values to string" do
       data = %{"values" => %{"number" => 42, "boolean" => true, "nil" => nil}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.number", "function" => "string"},
         %{"op" => "transform", "path" => "values.boolean", "function" => "string"},
@@ -707,7 +707,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["number"] == "42"
@@ -717,7 +717,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts strings to numbers" do
       data = %{"values" => %{"integer" => "123", "float" => "45.67", "invalid" => "abc"}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.integer", "function" => "number"},
         %{"op" => "transform", "path" => "values.float", "function" => "number"},
@@ -725,7 +725,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["integer"] == 123
@@ -735,7 +735,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts values to integers" do
       data = %{"values" => %{"string_int" => "456", "float" => 78.9, "string_float" => "12.34"}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string_int", "function" => "integer"},
         %{"op" => "transform", "path" => "values.float", "function" => "integer"},
@@ -743,7 +743,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["string_int"] == 456
@@ -753,14 +753,14 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "converts values to floats" do
       data = %{"values" => %{"string" => "123.45", "integer" => 67}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "float"},
         %{"op" => "transform", "path" => "values.integer", "function" => "float"}
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["string"] == 123.45
@@ -777,13 +777,13 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "false_string" => "false",
         "other" => "anything"
       }}
-      
+
       operations = Enum.map(Map.keys(data["values"]), fn key ->
         %{"op" => "transform", "path" => "values.#{key}", "function" => "boolean"}
       end)
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["true_val"] == true
@@ -801,7 +801,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
         "list" => [1, 2, 3, 4],
         "map" => %{"a" => 1, "b" => 2, "c" => 3}
       }}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "length"},
         %{"op" => "transform", "path" => "values.list", "function" => "length"},
@@ -809,7 +809,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["string"] == 5
@@ -819,14 +819,14 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "reverses strings and lists" do
       data = %{"values" => %{"string" => "hello", "list" => [1, 2, 3]}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.string", "function" => "reverse"},
         %{"op" => "transform", "path" => "values.list", "function" => "reverse"}
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["string"] == "olleh"
@@ -837,7 +837,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"text" => "apple,banana,cherry"}
       operation = %{"op" => "transform", "path" => "text", "function" => "split", "args" => [","]}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["text"] == ["apple", "banana", "cherry"]
     end
@@ -846,7 +846,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"text" => "hello world test"}
       operation = %{"op" => "transform", "path" => "text", "function" => "split"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["text"] == ["hello", "world", "test"]
     end
@@ -855,7 +855,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"items" => ["apple", "banana", "cherry"]}
       operation = %{"op" => "transform", "path" => "items", "function" => "join", "args" => [", "]}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["items"] == "apple, banana, cherry"
     end
@@ -864,14 +864,14 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"items" => ["hello", "world"]}
       operation = %{"op" => "transform", "path" => "items", "function" => "join"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["items"] == "hello world"
     end
 
     test "calculates absolute value of numbers" do
       data = %{"values" => %{"positive" => 5, "negative" => -10, "zero" => 0}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.positive", "function" => "abs"},
         %{"op" => "transform", "path" => "values.negative", "function" => "abs"},
@@ -879,7 +879,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["positive"] == 5
@@ -889,14 +889,14 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
     test "rounds numbers with precision" do
       data = %{"values" => %{"pi" => 3.14159, "simple" => 2.7}}
-      
+
       operations = [
         %{"op" => "transform", "path" => "values.pi", "function" => "round", "args" => [2]},
         %{"op" => "transform", "path" => "values.simple", "function" => "round"}
       ]
 
       result = Enum.reduce(operations, data, fn op, acc ->
-        DslInterpreter.apply_transform_operation_public(acc, op)
+        DslInterpreter.apply_operation_public(acc, op)
       end)
 
       assert result["values"]["pi"] == 3.14
@@ -907,7 +907,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"name" => "john"}, %{"name" => "jane"}]}
       operation = %{"op" => "transform", "path" => "users[].name", "function" => "uppercase"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["users"], 0)["name"] == "JOHN"
       assert Enum.at(result["users"], 1)["name"] == "JANE"
@@ -917,7 +917,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"value" => "test"}
       operation = %{"op" => "transform", "path" => "value", "function" => "unknown_function"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["value"] == "test"  # unchanged
     end
@@ -926,7 +926,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"other" => "value"}
       operation = %{"op" => "transform", "path" => "missing.path", "function" => "uppercase"}
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       # Should create the nested structure, but transform function returns original value for non-strings
       assert get_in(result, ["missing", "path"]) == nil
@@ -936,7 +936,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "transform"}  # missing required parameters
 
-      result = DslInterpreter.apply_transform_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -947,7 +947,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"name" => "John Doe"}, "target" => %{}}
       operation = %{"op" => "copy", "from" => "source.name", "to" => "target.name"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["name"] == "John Doe"
       assert result["source"]["name"] == "John Doe"  # original still exists
@@ -957,7 +957,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"user" => %{"name" => "Alice", "age" => 30}}, "backup" => %{}}
       operation = %{"op" => "copy", "from" => "source.user", "to" => "backup.user_copy"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["backup"]["user_copy"]["name"] == "Alice"
       assert result["backup"]["user_copy"]["age"] == 30
@@ -968,7 +968,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"tags" => ["tag1", "tag2", "tag3"]}, "target" => %{}}
       operation = %{"op" => "copy", "from" => "source.tags", "to" => "target.tag_backup"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["tag_backup"] == ["tag1", "tag2", "tag3"]
       assert result["source"]["tags"] == ["tag1", "tag2", "tag3"]  # original preserved
@@ -978,7 +978,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"email" => "john@example.com"}, %{"email" => "jane@example.com"}]}
       operation = %{"op" => "copy", "from" => "users[].email", "to" => "users[].backup_email"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["users"], 0)["backup_email"] == "john@example.com"
       assert Enum.at(result["users"], 1)["backup_email"] == "jane@example.com"
@@ -990,7 +990,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}], "summary" => %{}}
       operation = %{"op" => "copy", "from" => "users[].name", "to" => "summary.user_names"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["summary"]["user_names"] == ["John", "Jane"]
       assert result["users"] == [%{"name" => "John"}, %{"name" => "Jane"}]  # original preserved
@@ -1000,7 +1000,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"template" => "Default Template", "items" => [%{}, %{}]}
       operation = %{"op" => "copy", "from" => "template", "to" => "items[].template"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["items"], 0)["template"] == "Default Template"
       assert Enum.at(result["items"], 1)["template"] == "Default Template"
@@ -1014,7 +1014,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "copy", "from" => "source.level1.level2.value", "to" => "target.deep.copied.value"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert get_in(result, ["target", "deep", "copied", "value"]) == "deep value"
       assert get_in(result, ["source", "level1", "level2", "value"]) == "deep value"  # original preserved
@@ -1024,7 +1024,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"nil_field" => nil}, "target" => %{}}
       operation = %{"op" => "copy", "from" => "source.nil_field", "to" => "target.copied_nil"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["copied_nil"] == nil
       assert Map.has_key?(result["target"], "copied_nil")
@@ -1034,7 +1034,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{}, "target" => %{}}
       operation = %{"op" => "copy", "from" => "source.nonexistent", "to" => "target.copied"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["copied"] == nil
     end
@@ -1043,7 +1043,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"value" => "new"}, "target" => %{"value" => "old"}}
       operation = %{"op" => "copy", "from" => "source.value", "to" => "target.value"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["value"] == "new"
       assert result["source"]["value"] == "new"  # original preserved
@@ -1063,7 +1063,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "copy", "from" => "source.config", "to" => "backup.config_copy"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["backup"]["config_copy"]["settings"] == [
         %{"key" => "theme", "value" => "dark"},
@@ -1083,7 +1083,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "copy", "from" => "products[].name", "to" => "inventory[].product_name"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       # When copying between different arrays, it should copy the array result
       assert Enum.at(result["inventory"], 0)["product_name"] == ["Product A"]
@@ -1093,7 +1093,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => [], "target" => %{}}
       operation = %{"op" => "copy", "from" => "source", "to" => "target.empty_copy"}
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["empty_copy"] == []
       assert result["source"] == []  # original preserved
@@ -1103,7 +1103,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "copy"}  # missing required parameters
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -1112,7 +1112,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "copy", "to" => "target"}  # missing from
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -1121,7 +1121,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "copy", "from" => "test"}  # missing to
 
-      result = DslInterpreter.apply_copy_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -1132,7 +1132,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"name" => "John Doe", "age" => 30}, "target" => %{}}
       operation = %{"op" => "move", "from" => "source.name", "to" => "target.name"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["name"] == "John Doe"
       assert result["source"]["name"] == nil  # original removed
@@ -1143,7 +1143,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"user" => %{"name" => "Alice", "age" => 30}, "other" => "keep"}, "backup" => %{}}
       operation = %{"op" => "move", "from" => "source.user", "to" => "backup.user_moved"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["backup"]["user_moved"]["name"] == "Alice"
       assert result["backup"]["user_moved"]["age"] == 30
@@ -1155,7 +1155,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"tags" => ["tag1", "tag2", "tag3"], "other" => "keep"}, "target" => %{}}
       operation = %{"op" => "move", "from" => "source.tags", "to" => "target.moved_tags"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["moved_tags"] == ["tag1", "tag2", "tag3"]
       assert result["source"]["tags"] == nil  # original removed
@@ -1169,7 +1169,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       ]}
       operation = %{"op" => "move", "from" => "users[].temp_email", "to" => "users[].email"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["users"], 0)["email"] == "john@temp.com"
       assert Enum.at(result["users"], 1)["email"] == "jane@temp.com"
@@ -1183,7 +1183,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}], "summary" => %{}, "other" => "keep"}
       operation = %{"op" => "move", "from" => "users[].name", "to" => "summary.user_names"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["summary"]["user_names"] == ["John", "Jane"]
       assert result["users"] == [%{}, %{}]  # original fields removed (keys deleted, not set to nil)
@@ -1194,7 +1194,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"template" => "Default Template", "items" => [%{"id" => 1}, %{"id" => 2}], "other" => "keep"}
       operation = %{"op" => "move", "from" => "template", "to" => "items[].template"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert Enum.at(result["items"], 0)["template"] == "Default Template"
       assert Enum.at(result["items"], 1)["template"] == "Default Template"
@@ -1209,7 +1209,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "move", "from" => "source.level1.level2.value", "to" => "target.deep.moved.value"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert get_in(result, ["target", "deep", "moved", "value"]) == "deep value"
       assert get_in(result, ["source", "level1", "level2", "value"]) == nil  # original removed
@@ -1220,7 +1220,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"nil_field" => nil, "other" => "keep"}, "target" => %{}}
       operation = %{"op" => "move", "from" => "source.nil_field", "to" => "target.moved_nil"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["moved_nil"] == nil
       assert Map.has_key?(result["target"], "moved_nil")
@@ -1232,7 +1232,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"other" => "keep"}, "target" => %{}}
       operation = %{"op" => "move", "from" => "source.nonexistent", "to" => "target.moved"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["moved"] == nil
       assert result["source"]["other"] == "keep"  # other fields preserved
@@ -1242,7 +1242,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"value" => "new", "other" => "keep"}, "target" => %{"value" => "old"}}
       operation = %{"op" => "move", "from" => "source.value", "to" => "target.value"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["value"] == "new"
       assert result["source"]["value"] == nil  # original removed
@@ -1264,7 +1264,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "move", "from" => "source.config", "to" => "backup.config_moved"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["backup"]["config_moved"]["settings"] == [
         %{"key" => "theme", "value" => "dark"},
@@ -1281,9 +1281,9 @@ defmodule PolarityReducerEx.DslOperationsTest do
       }
       operation = %{"op" => "move", "from" => "products[].name", "to" => "inventory[].product_name"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
-      # When moving between different arrays, it should move the array result  
+      # When moving between different arrays, it should move the array result
       assert Enum.at(result["inventory"], 0)["product_name"] == ["Product A"]
       assert Enum.at(result["products"], 0)["name"] == nil  # original removed
       assert Enum.at(result["products"], 0)["other"] == "keep"  # other fields preserved
@@ -1293,7 +1293,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"source" => %{"empty" => [], "other" => "keep"}, "target" => %{}}
       operation = %{"op" => "move", "from" => "source.empty", "to" => "target.empty_moved"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["target"]["empty_moved"] == []
       assert result["source"]["empty"] == nil  # original removed
@@ -1304,7 +1304,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"old_key" => %{"nested" => "value"}, "keep" => "this"}
       operation = %{"op" => "move", "from" => "old_key", "to" => "new_key"}
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result["new_key"]["nested"] == "value"
       assert result["old_key"] == nil  # original removed
@@ -1315,7 +1315,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "move"}  # missing required parameters
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -1324,7 +1324,7 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "move", "to" => "target"}  # missing from
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
     end
@@ -1333,9 +1333,171 @@ defmodule PolarityReducerEx.DslOperationsTest do
       data = %{"test" => "value"}
       operation = %{"op" => "move", "from" => "test"}  # missing to
 
-      result = DslInterpreter.apply_move_operation_public(data, operation)
+      result = DslInterpreter.apply_operation_public(data, operation)
 
       assert result == data  # unchanged
+    end
+  end
+
+  describe "merge operation" do
+    test "shallow merges multiple objects" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "source2" => %{"email" => "john@example.com", "city" => "NYC"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+      assert result["target"]["merged"]["email"] == "john@example.com"
+      assert result["target"]["merged"]["city"] == "NYC"
+    end
+
+    test "shallow merge with conflicting keys (last wins)" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "source2" => %{"name" => "Jane", "email" => "jane@example.com"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "Jane"  # last wins
+      assert result["target"]["merged"]["age"] == 30
+      assert result["target"]["merged"]["email"] == "jane@example.com"
+    end
+
+    test "handles nil sources" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "source2" => nil,
+        "source3" => %{"age" => 30},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2", "source3"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+    end
+
+    test "handles non-existent source paths" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "nonexistent.path"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+    end
+
+    test "returns single value when only one valid source" do
+      data = %{
+        "source1" => %{"name" => "John", "age" => 30},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["name"] == "John"
+      assert result["target"]["merged"]["age"] == 30
+    end
+
+    test "returns nil when all sources are nil or missing" do
+      data = %{
+        "source1" => nil,
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "nonexistent"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"] == nil
+    end
+
+    test "handles mixed data types with shallow merge (last wins)" do
+      data = %{
+        "source1" => %{"data" => [1, 2, 3]},
+        "source2" => %{"data" => "string_value"},
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"]["data"] == "string_value"  # last wins
+    end
+
+    test "handles arrays as non-map values (last wins)" do
+      data = %{
+        "source1" => ["a", "b"],
+        "source2" => ["c", "d"],
+        "target" => %{}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"] == ["c", "d"]  # last wins for non-maps
+    end
+
+    test "merges into deeply nested target path" do
+      data = %{
+        "source1" => %{"name" => "John"},
+        "source2" => %{"age" => 30},
+        "target" => %{"deep" => %{"nested" => %{}}}
+      }
+      operation = %{"op" => "merge", "sources" => ["source1", "source2"], "to" => "target.deep.nested.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      merged = get_in(result, ["target", "deep", "nested", "merged"])
+      assert merged["name"] == "John"
+      assert merged["age"] == 30
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge"}  # missing required parameters
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing sources parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge", "to" => "target"}  # missing sources
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing to parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "merge", "sources" => ["test"]}  # missing to
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles empty sources array" do
+      data = %{"target" => %{}}
+      operation = %{"op" => "merge", "sources" => [], "to" => "target.merged"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["target"]["merged"] == nil
     end
   end
 end
