@@ -148,6 +148,10 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_copy_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "move"} = operation) do
+    apply_move_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -595,6 +599,53 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   defp apply_copy_operation(working_map, _), do: working_map
+
+  # Move operation: moves values from one path to another (copy + drop in one atomic operation)
+  defp apply_move_operation(working_map, %{"from" => from_path, "to" => to_path}) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+    
+    # Check if both paths are array paths with the same structure for element-wise moving
+    case {from_parsed, to_parsed} do
+      # Both are array paths like "users[].old_email" and "users[].new_email"
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      when array_name == same_array_name ->
+        # Handle element-wise moving within the same array
+        apply_array_element_moving(working_map, array_name, from_fields, to_fields)
+      
+      # Different arrays or regular paths
+      _ ->
+        # Get the source value
+        source_value = get_nested_value(working_map, from_parsed)
+        # Set it at the target path
+        updated_map = put_nested_value(working_map, to_parsed, source_value)
+        # Remove it from the source path
+        drop_at_path(updated_map, from_parsed)
+    end
+  end
+
+  defp apply_move_operation(working_map, _), do: working_map
+
+  # Handle element-wise moving within arrays (copy then drop source fields)  
+  defp apply_array_element_moving(working_map, array_name, from_fields, to_fields) do
+    case Map.get(working_map, array_name) do
+      list when is_list(list) ->
+        updated_list = Enum.map(list, fn element ->
+          case get_nested_value(element, from_fields) do
+            nil -> element
+            value -> 
+              # Copy to new location and drop from old location
+              element
+              |> update_at_path(to_fields, fn _ -> value end)
+              |> drop_at_path(from_fields)
+          end
+        end)
+        Map.put(working_map, array_name, updated_list)
+
+      _ ->
+        working_map
+    end
+  end
 
   # ===== PATH UTILITIES =====
 
@@ -1207,6 +1258,11 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_copy_operation_public(working_map, operation) do
     apply_copy_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_move_operation_public(working_map, operation) do
+    apply_move_operation(working_map, operation)
   end
 
   @doc false

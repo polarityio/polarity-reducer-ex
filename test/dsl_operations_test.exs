@@ -1126,4 +1126,216 @@ defmodule PolarityReducerEx.DslOperationsTest do
       assert result == data  # unchanged
     end
   end
+
+  describe "move operation" do
+    test "moves value from one path to another" do
+      data = %{"source" => %{"name" => "John Doe", "age" => 30}, "target" => %{}}
+      operation = %{"op" => "move", "from" => "source.name", "to" => "target.name"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["name"] == "John Doe"
+      assert result["source"]["name"] == nil  # original removed
+      assert result["source"]["age"] == 30  # other fields preserved
+    end
+
+    test "moves nested object" do
+      data = %{"source" => %{"user" => %{"name" => "Alice", "age" => 30}, "other" => "keep"}, "backup" => %{}}
+      operation = %{"op" => "move", "from" => "source.user", "to" => "backup.user_moved"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["backup"]["user_moved"]["name"] == "Alice"
+      assert result["backup"]["user_moved"]["age"] == 30
+      assert result["source"]["user"] == nil  # original removed
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves array" do
+      data = %{"source" => %{"tags" => ["tag1", "tag2", "tag3"], "other" => "keep"}, "target" => %{}}
+      operation = %{"op" => "move", "from" => "source.tags", "to" => "target.moved_tags"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["moved_tags"] == ["tag1", "tag2", "tag3"]
+      assert result["source"]["tags"] == nil  # original removed
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves between array elements (same array)" do
+      data = %{"users" => [
+        %{"temp_email" => "john@temp.com", "name" => "John"},
+        %{"temp_email" => "jane@temp.com", "name" => "Jane"}
+      ]}
+      operation = %{"op" => "move", "from" => "users[].temp_email", "to" => "users[].email"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert Enum.at(result["users"], 0)["email"] == "john@temp.com"
+      assert Enum.at(result["users"], 1)["email"] == "jane@temp.com"
+      assert Enum.at(result["users"], 0)["temp_email"] == nil  # original removed
+      assert Enum.at(result["users"], 1)["temp_email"] == nil  # original removed
+      assert Enum.at(result["users"], 0)["name"] == "John"  # other fields preserved
+      assert Enum.at(result["users"], 1)["name"] == "Jane"  # other fields preserved
+    end
+
+    test "moves from array to regular field" do
+      data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}], "summary" => %{}, "other" => "keep"}
+      operation = %{"op" => "move", "from" => "users[].name", "to" => "summary.user_names"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["summary"]["user_names"] == ["John", "Jane"]
+      assert result["users"] == [%{}, %{}]  # original fields removed (keys deleted, not set to nil)
+      assert result["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves from regular field to array elements" do
+      data = %{"template" => "Default Template", "items" => [%{"id" => 1}, %{"id" => 2}], "other" => "keep"}
+      operation = %{"op" => "move", "from" => "template", "to" => "items[].template"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert Enum.at(result["items"], 0)["template"] == "Default Template"
+      assert Enum.at(result["items"], 1)["template"] == "Default Template"
+      assert result["template"] == nil  # original removed
+      assert result["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves deeply nested values" do
+      data = %{
+        "source" => %{"level1" => %{"level2" => %{"value" => "deep value", "keep" => "this"}}},
+        "target" => %{}
+      }
+      operation = %{"op" => "move", "from" => "source.level1.level2.value", "to" => "target.deep.moved.value"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert get_in(result, ["target", "deep", "moved", "value"]) == "deep value"
+      assert get_in(result, ["source", "level1", "level2", "value"]) == nil  # original removed
+      assert get_in(result, ["source", "level1", "level2", "keep"]) == "this"  # other fields preserved
+    end
+
+    test "handles moving nil values" do
+      data = %{"source" => %{"nil_field" => nil, "other" => "keep"}, "target" => %{}}
+      operation = %{"op" => "move", "from" => "source.nil_field", "to" => "target.moved_nil"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["moved_nil"] == nil
+      assert Map.has_key?(result["target"], "moved_nil")
+      assert result["source"]["nil_field"] == nil  # nil removal results in nil
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "handles moving from non-existent path" do
+      data = %{"source" => %{"other" => "keep"}, "target" => %{}}
+      operation = %{"op" => "move", "from" => "source.nonexistent", "to" => "target.moved"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["moved"] == nil
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "overwrites existing target field" do
+      data = %{"source" => %{"value" => "new", "other" => "keep"}, "target" => %{"value" => "old"}}
+      operation = %{"op" => "move", "from" => "source.value", "to" => "target.value"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["value"] == "new"
+      assert result["source"]["value"] == nil  # original removed
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves complex nested structures" do
+      data = %{
+        "source" => %{
+          "config" => %{
+            "settings" => [
+              %{"key" => "theme", "value" => "dark"},
+              %{"key" => "lang", "value" => "en"}
+            ]
+          },
+          "other" => "keep"
+        },
+        "backup" => %{}
+      }
+      operation = %{"op" => "move", "from" => "source.config", "to" => "backup.config_moved"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["backup"]["config_moved"]["settings"] == [
+        %{"key" => "theme", "value" => "dark"},
+        %{"key" => "lang", "value" => "en"}
+      ]
+      assert result["source"]["config"] == nil  # original removed
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves between different arrays" do
+      data = %{
+        "products" => [%{"id" => 1, "name" => "Product A", "other" => "keep"}],
+        "inventory" => [%{"slot" => 1}]
+      }
+      operation = %{"op" => "move", "from" => "products[].name", "to" => "inventory[].product_name"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      # When moving between different arrays, it should move the array result  
+      assert Enum.at(result["inventory"], 0)["product_name"] == ["Product A"]
+      assert Enum.at(result["products"], 0)["name"] == nil  # original removed
+      assert Enum.at(result["products"], 0)["other"] == "keep"  # other fields preserved
+    end
+
+    test "handles empty arrays" do
+      data = %{"source" => %{"empty" => [], "other" => "keep"}, "target" => %{}}
+      operation = %{"op" => "move", "from" => "source.empty", "to" => "target.empty_moved"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["target"]["empty_moved"] == []
+      assert result["source"]["empty"] == nil  # original removed
+      assert result["source"]["other"] == "keep"  # other fields preserved
+    end
+
+    test "moves entire object at root level" do
+      data = %{"old_key" => %{"nested" => "value"}, "keep" => "this"}
+      operation = %{"op" => "move", "from" => "old_key", "to" => "new_key"}
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result["new_key"]["nested"] == "value"
+      assert result["old_key"] == nil  # original removed
+      assert result["keep"] == "this"  # other fields preserved
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "move"}  # missing required parameters
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing from parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "move", "to" => "target"}  # missing from
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing to parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "move", "from" => "test"}  # missing to
+
+      result = DslInterpreter.apply_move_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+  end
 end

@@ -410,6 +410,61 @@ Copy values from one path to another without removing the original.
 }
 ```
 
+#### move
+Move values from one path to another, removing from the original location (atomic copy + drop).
+
+**Schema:**
+```json
+{
+  "op": "move",
+  "from": "string",
+  "to": "string"
+}
+```
+
+**Parameters:**
+- `from`: Source path to move from (original will be removed)
+- `to`: Destination path to move to
+
+**Array Behavior:**
+- **Same Array Element-wise**: `users[].temp_email` → `users[].email` moves element by element within the same array
+- **Array to Regular**: `users[].name` → `summary.names` moves entire array result and removes original fields
+- **Regular to Array**: `template` → `items[].template` moves value to all array elements and removes original
+- **Cross-Array**: `products[].name` → `inventory[].product_name` moves array result to target and removes original fields
+
+**Examples:**
+```json
+{
+  "op": "move",
+  "from": "user.temp_email",
+  "to": "user.email"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "users[].draft_name",
+  "to": "users[].name"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "config.temp_settings",
+  "to": "items[].settings"
+}
+```
+
+```json
+{
+  "op": "move",
+  "from": "old_data.users",
+  "to": "migrated.user_list"
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp
