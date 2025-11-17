@@ -364,6 +364,52 @@ Apply transformation functions to field values.
 }
 ```
 
+#### copy
+Copy values from one path to another without removing the original.
+
+**Schema:**
+```json
+{
+  "op": "copy",
+  "from": "string",
+  "to": "string"
+}
+```
+
+**Parameters:**
+- `from`: Source path to copy from
+- `to`: Destination path to copy to
+
+**Array Behavior:**
+- **Same Array Element-wise**: `users[].email` → `users[].backup_email` copies element by element
+- **Array to Regular**: `users[].name` → `summary.names` copies entire array result
+- **Regular to Array**: `template` → `items[].template` copies value to all array elements
+
+**Examples:**
+```json
+{
+  "op": "copy",
+  "from": "user.email",
+  "to": "backup.user_email"
+}
+```
+
+```json
+{
+  "op": "copy",
+  "from": "users[].name", 
+  "to": "users[].display_name"
+}
+```
+
+```json
+{
+  "op": "copy",
+  "from": "config.default_theme",
+  "to": "users[].theme"
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp

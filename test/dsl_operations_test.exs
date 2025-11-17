@@ -941,4 +941,189 @@ defmodule PolarityReducerEx.DslOperationsTest do
       assert result == data  # unchanged
     end
   end
+
+  describe "copy operation" do
+    test "copies value from one path to another" do
+      data = %{"source" => %{"name" => "John Doe"}, "target" => %{}}
+      operation = %{"op" => "copy", "from" => "source.name", "to" => "target.name"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["name"] == "John Doe"
+      assert result["source"]["name"] == "John Doe"  # original still exists
+    end
+
+    test "copies nested object" do
+      data = %{"source" => %{"user" => %{"name" => "Alice", "age" => 30}}, "backup" => %{}}
+      operation = %{"op" => "copy", "from" => "source.user", "to" => "backup.user_copy"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["backup"]["user_copy"]["name"] == "Alice"
+      assert result["backup"]["user_copy"]["age"] == 30
+      assert result["source"]["user"]["name"] == "Alice"  # original preserved
+    end
+
+    test "copies array" do
+      data = %{"source" => %{"tags" => ["tag1", "tag2", "tag3"]}, "target" => %{}}
+      operation = %{"op" => "copy", "from" => "source.tags", "to" => "target.tag_backup"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["tag_backup"] == ["tag1", "tag2", "tag3"]
+      assert result["source"]["tags"] == ["tag1", "tag2", "tag3"]  # original preserved
+    end
+
+    test "copies between array elements (same array)" do
+      data = %{"users" => [%{"email" => "john@example.com"}, %{"email" => "jane@example.com"}]}
+      operation = %{"op" => "copy", "from" => "users[].email", "to" => "users[].backup_email"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert Enum.at(result["users"], 0)["backup_email"] == "john@example.com"
+      assert Enum.at(result["users"], 1)["backup_email"] == "jane@example.com"
+      assert Enum.at(result["users"], 0)["email"] == "john@example.com"  # original preserved
+      assert Enum.at(result["users"], 1)["email"] == "jane@example.com"  # original preserved
+    end
+
+    test "copies from array to regular field" do
+      data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}], "summary" => %{}}
+      operation = %{"op" => "copy", "from" => "users[].name", "to" => "summary.user_names"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["summary"]["user_names"] == ["John", "Jane"]
+      assert result["users"] == [%{"name" => "John"}, %{"name" => "Jane"}]  # original preserved
+    end
+
+    test "copies from regular field to array elements" do
+      data = %{"template" => "Default Template", "items" => [%{}, %{}]}
+      operation = %{"op" => "copy", "from" => "template", "to" => "items[].template"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert Enum.at(result["items"], 0)["template"] == "Default Template"
+      assert Enum.at(result["items"], 1)["template"] == "Default Template"
+      assert result["template"] == "Default Template"  # original preserved
+    end
+
+    test "copies deeply nested values" do
+      data = %{
+        "source" => %{"level1" => %{"level2" => %{"value" => "deep value"}}},
+        "target" => %{}
+      }
+      operation = %{"op" => "copy", "from" => "source.level1.level2.value", "to" => "target.deep.copied.value"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert get_in(result, ["target", "deep", "copied", "value"]) == "deep value"
+      assert get_in(result, ["source", "level1", "level2", "value"]) == "deep value"  # original preserved
+    end
+
+    test "handles copying nil values" do
+      data = %{"source" => %{"nil_field" => nil}, "target" => %{}}
+      operation = %{"op" => "copy", "from" => "source.nil_field", "to" => "target.copied_nil"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["copied_nil"] == nil
+      assert Map.has_key?(result["target"], "copied_nil")
+    end
+
+    test "handles copying from non-existent path" do
+      data = %{"source" => %{}, "target" => %{}}
+      operation = %{"op" => "copy", "from" => "source.nonexistent", "to" => "target.copied"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["copied"] == nil
+    end
+
+    test "overwrites existing target field" do
+      data = %{"source" => %{"value" => "new"}, "target" => %{"value" => "old"}}
+      operation = %{"op" => "copy", "from" => "source.value", "to" => "target.value"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["value"] == "new"
+      assert result["source"]["value"] == "new"  # original preserved
+    end
+
+    test "copies complex nested structures" do
+      data = %{
+        "source" => %{
+          "config" => %{
+            "settings" => [
+              %{"key" => "theme", "value" => "dark"},
+              %{"key" => "lang", "value" => "en"}
+            ]
+          }
+        },
+        "backup" => %{}
+      }
+      operation = %{"op" => "copy", "from" => "source.config", "to" => "backup.config_copy"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["backup"]["config_copy"]["settings"] == [
+        %{"key" => "theme", "value" => "dark"},
+        %{"key" => "lang", "value" => "en"}
+      ]
+      # Verify original is preserved
+      assert result["source"]["config"]["settings"] == [
+        %{"key" => "theme", "value" => "dark"},
+        %{"key" => "lang", "value" => "en"}
+      ]
+    end
+
+    test "copies between different arrays" do
+      data = %{
+        "products" => [%{"id" => 1, "name" => "Product A"}],
+        "inventory" => [%{"slot" => 1}]
+      }
+      operation = %{"op" => "copy", "from" => "products[].name", "to" => "inventory[].product_name"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      # When copying between different arrays, it should copy the array result
+      assert Enum.at(result["inventory"], 0)["product_name"] == ["Product A"]
+    end
+
+    test "handles empty arrays" do
+      data = %{"source" => [], "target" => %{}}
+      operation = %{"op" => "copy", "from" => "source", "to" => "target.empty_copy"}
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result["target"]["empty_copy"] == []
+      assert result["source"] == []  # original preserved
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "copy"}  # missing required parameters
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing from parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "copy", "to" => "target"}  # missing from
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+
+    test "handles missing to parameter" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "copy", "from" => "test"}  # missing to
+
+      result = DslInterpreter.apply_copy_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+  end
 end

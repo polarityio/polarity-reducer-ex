@@ -144,6 +144,10 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_transform_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "copy"} = operation) do
+    apply_copy_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -567,6 +571,30 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   # Default case - return original value if function not recognized
   defp apply_transform_function(value, _function, _args), do: value
+
+  # Copy operation: copies values from one path to another
+  defp apply_copy_operation(working_map, %{"from" => from_path, "to" => to_path}) do
+    from_parsed = parse_path(from_path)
+    to_parsed = parse_path(to_path)
+    
+    # Check if both paths are array paths with the same structure for element-wise copying
+    case {from_parsed, to_parsed} do
+      # Both are array paths like "users[].email" and "users[].backup_email"
+      {[array_name, "[]" | from_fields], [same_array_name, "[]" | to_fields]} 
+      when array_name == same_array_name ->
+        # Handle element-wise copying within the same array
+        apply_array_element_copying(working_map, array_name, to_fields, from_fields)
+      
+      # Different arrays or regular paths
+      _ ->
+        # Get the source value
+        source_value = get_nested_value(working_map, from_parsed)
+        # Set it at the target path
+        put_nested_value(working_map, to_parsed, source_value)
+    end
+  end
+
+  defp apply_copy_operation(working_map, _), do: working_map
 
   # ===== PATH UTILITIES =====
 
@@ -1174,6 +1202,11 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_transform_operation_public(working_map, operation) do
     apply_transform_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_copy_operation_public(working_map, operation) do
+    apply_copy_operation(working_map, operation)
   end
 
   @doc false
