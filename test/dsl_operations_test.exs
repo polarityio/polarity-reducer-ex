@@ -531,4 +531,132 @@ defmodule PolarityReducerEx.DslOperationsTest do
       assert get_in(result, ["level1", "level2", "level3", "level4", "other"]) == "keep_me"
     end
   end
+
+  describe "set operation" do
+    test "sets static string value" do
+      data = %{"user" => %{"name" => "John"}}
+      operation = %{"op" => "set", "path" => "user.status", "value" => "active"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["user"]["status"] == "active"
+      assert result["user"]["name"] == "John"  # original data preserved
+    end
+
+    test "sets static number value" do
+      data = %{"counters" => %{}}
+      operation = %{"op" => "set", "path" => "counters.total", "value" => 42}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["counters"]["total"] == 42
+    end
+
+    test "sets static boolean value" do
+      data = %{"flags" => %{}}
+      operation = %{"op" => "set", "path" => "flags.enabled", "value" => true}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["flags"]["enabled"] == true
+    end
+
+    test "sets static object value" do
+      data = %{"config" => %{}}
+      operation = %{"op" => "set", "path" => "config.database", "value" => %{"host" => "localhost", "port" => 5432}}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["config"]["database"]["host"] == "localhost"
+      assert result["config"]["database"]["port"] == 5432
+    end
+
+    test "copies value from another path" do
+      data = %{"source" => %{"name" => "John"}, "target" => %{}}
+      operation = %{"op" => "set", "path" => "target.display_name", "value" => "$path:source.name"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["target"]["display_name"] == "John"
+      assert result["source"]["name"] == "John"  # original preserved
+    end
+
+    test "copies nested value from path" do
+      data = %{
+        "user" => %{"profile" => %{"full_name" => "John Doe"}},
+        "metadata" => %{}
+      }
+      operation = %{"op" => "set", "path" => "metadata.author", "value" => "$path:user.profile.full_name"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["metadata"]["author"] == "John Doe"
+    end
+
+    test "sets array elements with wildcard and static value" do
+      data = %{"users" => [%{"name" => "John"}, %{"name" => "Jane"}]}
+      operation = %{"op" => "set", "path" => "users[].active", "value" => true}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert Enum.all?(result["users"], fn user -> user["active"] == true end)
+      assert Enum.at(result["users"], 0)["name"] == "John"
+      assert Enum.at(result["users"], 1)["name"] == "Jane"
+    end
+
+    test "copies from array path to array path" do
+      data = %{"users" => [%{"first_name" => "John"}, %{"first_name" => "Jane"}]}
+      operation = %{"op" => "set", "path" => "users[].display_name", "value" => "$path:users[].first_name"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert Enum.at(result["users"], 0)["display_name"] == "John"
+      assert Enum.at(result["users"], 1)["display_name"] == "Jane"
+    end
+
+    test "overwrites existing value" do
+      data = %{"user" => %{"status" => "inactive"}}
+      operation = %{"op" => "set", "path" => "user.status", "value" => "active"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["user"]["status"] == "active"
+    end
+
+    test "creates nested structure when path doesn't exist" do
+      data = %{}
+      operation = %{"op" => "set", "path" => "deeply.nested.value", "value" => "created"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert get_in(result, ["deeply", "nested", "value"]) == "created"
+    end
+
+    test "handles nil path reference gracefully" do
+      data = %{"source" => %{"missing" => nil}, "target" => %{}}
+      operation = %{"op" => "set", "path" => "target.copied", "value" => "$path:source.missing"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["target"]["copied"] == nil
+    end
+
+    test "handles missing path reference gracefully" do
+      data = %{"source" => %{}, "target" => %{}}
+      operation = %{"op" => "set", "path" => "target.copied", "value" => "$path:source.nonexistent"}
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result["target"]["copied"] == nil
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "set"}  # missing required parameters
+
+      result = DslInterpreter.apply_set_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+  end
 end

@@ -136,6 +136,10 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_current_timestamp_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "set"} = operation) do
+    apply_set_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -280,6 +284,58 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp apply_prune_operation(working_map, _), do: working_map
 
+
+
+  # Handle array-to-array copying specially
+  defp apply_set_operation(working_map, %{"path" => path, "value" => "$path:" <> source_path}) do
+    target_parsed = parse_path(path)
+    source_parsed = parse_path(source_path)
+    
+    # Check if both paths are array paths with the same structure
+    case {target_parsed, source_parsed} do
+      # Both are array paths like "users[].display_name" and "users[].first_name"
+      {[array_name, "[]" | target_fields], [same_array_name, "[]" | source_fields]} 
+      when array_name == same_array_name ->
+        # Handle element-wise copying within the same array
+        apply_array_element_copying(working_map, array_name, target_fields, source_fields)
+      
+      _ ->
+        # Regular path resolution
+        update_at_path(working_map, target_parsed, fn _ ->
+          resolve_set_value(source_path, working_map)
+        end)
+    end
+  end
+
+  # Handle static values and other cases
+  defp apply_set_operation(working_map, %{"path" => path, "value" => value}) do
+    update_at_path(working_map, parse_path(path), fn _ -> value end)
+  end
+
+  defp apply_set_operation(working_map, _), do: working_map
+
+  # Handle element-wise copying within arrays
+  defp apply_array_element_copying(working_map, array_name, target_fields, source_fields) do
+    case Map.get(working_map, array_name) do
+      list when is_list(list) ->
+        updated_list = Enum.map(list, fn element ->
+          case get_nested_value(element, source_fields) do
+            nil -> element
+            value -> update_at_path(element, target_fields, fn _ -> value end)
+          end
+        end)
+        Map.put(working_map, array_name, updated_list)
+      
+      _ -> 
+        working_map
+    end
+  end
+
+  # Regular resolve function for non-array cases
+  defp resolve_set_value(source_path, working_map) do
+    get_nested_value(working_map, parse_path(source_path))
+  end
+
   # Rename operation: renames fields according to mapping
   defp apply_rename_operation(working_map, %{"mapping" => mapping}) when is_map(mapping) do
     Enum.reduce(mapping, working_map, fn {from_path, to_path}, acc ->
@@ -397,7 +453,7 @@ defmodule PolarityReducerEx.DslInterpreter do
   # Update a nested value using a function with wildcard support
   defp update_at_path(map, [], func), do: func.(map)
   defp update_at_path(map, [key], func) when is_map(map) do
-    Map.update(map, key, nil, func)
+    Map.update(map, key, func.(nil), func)
   end
   defp update_at_path(map, [key | rest], func) when is_map(map) do
     current = Map.get(map, key, %{})
@@ -502,6 +558,9 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp perform_suffix_rename(data, _, _), do: data
 
   # ===== HELPER FUNCTIONS =====
+
+  # Resolve a set value - can be a static value or a path reference
+
 
   # Project data using a mapping configuration
   defp project_data(source_data, mapping) when is_list(source_data) and is_map(mapping) do
@@ -908,6 +967,11 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_aggregate_list_operation_public(working_map, operation) do
     apply_aggregate_list_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_set_operation_public(working_map, operation) do
+    apply_set_operation(working_map, operation)
   end
 
   @doc false

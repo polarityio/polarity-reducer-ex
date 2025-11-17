@@ -239,6 +239,54 @@ Remove empty, null, or unwanted values from the structure.
 }
 ```
 
+#### set
+Set field values to static values or copy from other paths.
+
+**Schema:**
+```json
+{
+  "op": "set",
+  "path": "string",
+  "value": any
+}
+```
+
+**Parameters:**
+- `path`: Path where to set the value
+- `value`: Value to set (static value or path reference)
+
+**Value Types:**
+- **Static values**: Numbers, strings, booleans, objects, arrays
+- **Path references**: `"$path:source.field"` to copy from another field
+
+**Examples:**
+```json
+{
+  "op": "set",
+  "path": "metadata.processed",
+  "value": true
+}
+```
+
+```json
+{
+  "op": "set", 
+  "path": "users[].display_name",
+  "value": "$path:users[].first_name"
+}
+```
+
+```json
+{
+  "op": "set",
+  "path": "summary.stats",
+  "value": {
+    "total_users": 0,
+    "active": false
+  }
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp
