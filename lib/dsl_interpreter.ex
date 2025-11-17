@@ -140,6 +140,10 @@ defmodule PolarityReducerEx.DslInterpreter do
     apply_set_operation(working_map, operation)
   end
 
+  defp apply_operation(working_map, %{"op" => "transform"} = operation) do
+    apply_transform_operation(working_map, operation)
+  end
+
   defp apply_operation(working_map, _unknown_operation), do: working_map
 
   # ===== OPERATION IMPLEMENTATIONS =====
@@ -290,15 +294,15 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp apply_set_operation(working_map, %{"path" => path, "value" => "$path:" <> source_path}) do
     target_parsed = parse_path(path)
     source_parsed = parse_path(source_path)
-    
+
     # Check if both paths are array paths with the same structure
     case {target_parsed, source_parsed} do
       # Both are array paths like "users[].display_name" and "users[].first_name"
-      {[array_name, "[]" | target_fields], [same_array_name, "[]" | source_fields]} 
+      {[array_name, "[]" | target_fields], [same_array_name, "[]" | source_fields]}
       when array_name == same_array_name ->
         # Handle element-wise copying within the same array
         apply_array_element_copying(working_map, array_name, target_fields, source_fields)
-      
+
       _ ->
         # Regular path resolution
         update_at_path(working_map, target_parsed, fn _ ->
@@ -325,8 +329,8 @@ defmodule PolarityReducerEx.DslInterpreter do
           end
         end)
         Map.put(working_map, array_name, updated_list)
-      
-      _ -> 
+
+      _ ->
         working_map
     end
   end
@@ -405,6 +409,164 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   defp apply_current_timestamp_operation(working_map, _), do: working_map
+
+  # Transform operation: applies transformation functions to field values
+  defp apply_transform_operation(working_map, %{"path" => path, "function" => function} = operation) do
+    args = Map.get(operation, "args", [])
+    
+    update_at_path(working_map, parse_path(path), fn value ->
+      apply_transform_function(value, function, args)
+    end)
+  end
+
+  defp apply_transform_operation(working_map, _), do: working_map
+
+  # Apply transformation functions to values
+  defp apply_transform_function(value, "uppercase", _args) when is_binary(value) do
+    String.upcase(value)
+  end
+
+  defp apply_transform_function(value, "lowercase", _args) when is_binary(value) do
+    String.downcase(value)
+  end
+
+  defp apply_transform_function(value, "capitalize", _args) when is_binary(value) do
+    String.capitalize(value)
+  end
+
+  defp apply_transform_function(value, "trim", _args) when is_binary(value) do
+    String.trim(value)
+  end
+
+  defp apply_transform_function(value, "string", _args) do
+    cond do
+      is_binary(value) -> value
+      is_number(value) -> to_string(value)
+      is_boolean(value) -> to_string(value)
+      is_nil(value) -> ""
+      is_atom(value) -> Atom.to_string(value)
+      true -> inspect(value)
+    end
+  end
+
+  defp apply_transform_function(value, "number", _args) when is_binary(value) do
+    case Float.parse(value) do
+      {num, ""} -> 
+        # Check if it's actually an integer
+        if trunc(num) == num do
+          trunc(num)
+        else
+          num
+        end
+      {num, _} -> num
+      :error -> 
+        case Integer.parse(value) do
+          {int, ""} -> int
+          {int, _} -> int
+          :error -> nil
+        end
+    end
+  end
+
+  defp apply_transform_function(value, "number", _args) when is_number(value), do: value
+  defp apply_transform_function(_value, "number", _args), do: nil
+
+  defp apply_transform_function(value, "integer", _args) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      {int, _} -> int
+      :error -> nil
+    end
+  end
+
+  defp apply_transform_function(value, "integer", _args) when is_integer(value), do: value
+  defp apply_transform_function(value, "integer", _args) when is_float(value), do: trunc(value)
+  defp apply_transform_function(_value, "integer", _args), do: nil
+
+  defp apply_transform_function(value, "float", _args) when is_binary(value) do
+    case Float.parse(value) do
+      {float, ""} -> float
+      {float, _} -> float
+      :error -> nil
+    end
+  end
+
+  defp apply_transform_function(value, "float", _args) when is_float(value), do: value
+  defp apply_transform_function(value, "float", _args) when is_integer(value), do: value * 1.0
+  defp apply_transform_function(_value, "float", _args), do: nil
+
+  defp apply_transform_function(value, "boolean", _args) do
+    case value do
+      true -> true
+      false -> false
+      nil -> false
+      "" -> false
+      0 -> false
+      0.0 -> false
+      "false" -> false
+      "False" -> false
+      "FALSE" -> false
+      "0" -> false
+      _ -> true
+    end
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_binary(value) do
+    String.length(value)
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_list(value) do
+    length(value)
+  end
+
+  defp apply_transform_function(value, "length", _args) when is_map(value) do
+    map_size(value)
+  end
+
+  defp apply_transform_function(_value, "length", _args), do: nil
+
+  defp apply_transform_function(value, "reverse", _args) when is_binary(value) do
+    String.reverse(value)
+  end
+
+  defp apply_transform_function(value, "reverse", _args) when is_list(value) do
+    Enum.reverse(value)
+  end
+
+  defp apply_transform_function(value, "reverse", _args), do: value
+
+  defp apply_transform_function(value, "split", args) when is_binary(value) and is_list(args) do
+    delimiter = List.first(args) || " "
+    String.split(value, delimiter)
+  end
+
+  defp apply_transform_function(value, "split", _args), do: value
+
+  defp apply_transform_function(value, "join", args) when is_list(value) and is_list(args) do
+    delimiter = List.first(args) || " "
+    Enum.join(value, delimiter)
+  end
+
+  defp apply_transform_function(value, "join", _args), do: value
+
+  defp apply_transform_function(value, "abs", _args) when is_number(value) do
+    abs(value)
+  end
+
+  defp apply_transform_function(value, "abs", _args), do: value
+
+  defp apply_transform_function(value, "round", args) when is_number(value) do
+    precision = case args do
+      [p] when is_integer(p) -> p
+      _ -> 0
+    end
+    Float.round(value * 1.0, precision)
+  end
+
+  defp apply_transform_function(value, "round", _args), do: value
+
+  # Default case - return original value if function not recognized
+  defp apply_transform_function(value, _function, _args), do: value
 
   # ===== PATH UTILITIES =====
 
@@ -1007,6 +1169,11 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_current_timestamp_operation_public(working_map, operation) do
     apply_current_timestamp_operation(working_map, operation)
+  end
+
+  @doc false
+  def apply_transform_operation_public(working_map, operation) do
+    apply_transform_operation(working_map, operation)
   end
 
   @doc false

@@ -287,6 +287,83 @@ Set field values to static values or copy from other paths.
 }
 ```
 
+#### transform
+Apply transformation functions to field values.
+
+**Schema:**
+```json
+{
+  "op": "transform",
+  "path": "string",
+  "function": "string",
+  "args": ["string", "..."]
+}
+```
+
+**Parameters:**
+- `path`: Path to the field(s) to transform
+- `function`: Transformation function name
+- `args`: Optional array of function arguments
+
+**Supported Functions:**
+
+**String Functions:**
+- `"uppercase"`: Convert to uppercase
+- `"lowercase"`: Convert to lowercase  
+- `"capitalize"`: Capitalize first letter 
+- `"trim"`: Remove leading/trailing whitespace
+- `"reverse"`: Reverse string
+- `"split"`: Split string into array (args: delimiter, default: " ")
+
+**Type Conversion Functions:**
+- `"string"`: Convert to string
+- `"number"`: Convert to number (integer or float)
+- `"integer"`: Convert to integer
+- `"float"`: Convert to float
+- `"boolean"`: Convert to boolean
+
+**Utility Functions:**
+- `"length"`: Get length of string, array, or map
+- `"reverse"`: Reverse string or array
+- `"join"`: Join array into string (args: delimiter, default: " ")
+- `"abs"`: Absolute value of number
+- `"round"`: Round number (args: precision, default: 0)
+
+**Examples:**
+```json
+{
+  "op": "transform",
+  "path": "user.name",
+  "function": "uppercase"
+}
+```
+
+```json
+{
+  "op": "transform", 
+  "path": "users[].email",
+  "function": "lowercase"
+}
+```
+
+```json
+{
+  "op": "transform",
+  "path": "description",
+  "function": "split",
+  "args": [","]
+}
+```
+
+```json
+{
+  "op": "transform",
+  "path": "scores[].value",
+  "function": "round",
+  "args": [2]
+}
+```
+
 ### Date/Time Operations
 
 #### current_timestamp

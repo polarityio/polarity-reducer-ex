@@ -659,4 +659,286 @@ defmodule PolarityReducerEx.DslOperationsTest do
       assert result == data  # unchanged
     end
   end
+
+  describe "transform operation" do
+    test "transforms string to uppercase" do
+      data = %{"user" => %{"name" => "john doe"}}
+      operation = %{"op" => "transform", "path" => "user.name", "function" => "uppercase"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["user"]["name"] == "JOHN DOE"
+    end
+
+    test "transforms string to lowercase" do
+      data = %{"user" => %{"name" => "JANE SMITH"}}
+      operation = %{"op" => "transform", "path" => "user.name", "function" => "lowercase"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["user"]["name"] == "jane smith"
+    end
+
+    test "capitalizes string" do
+      data = %{"user" => %{"name" => "alice wonderland"}}
+      operation = %{"op" => "transform", "path" => "user.name", "function" => "capitalize"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["user"]["name"] == "Alice wonderland"
+    end
+
+    test "trims whitespace from string" do
+      data = %{"user" => %{"name" => "  bob builder  "}}
+      operation = %{"op" => "transform", "path" => "user.name", "function" => "trim"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["user"]["name"] == "bob builder"
+    end
+
+    test "converts values to string" do
+      data = %{"values" => %{"number" => 42, "boolean" => true, "nil" => nil}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.number", "function" => "string"},
+        %{"op" => "transform", "path" => "values.boolean", "function" => "string"},
+        %{"op" => "transform", "path" => "values.nil", "function" => "string"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["number"] == "42"
+      assert result["values"]["boolean"] == "true"
+      assert result["values"]["nil"] == ""
+    end
+
+    test "converts strings to numbers" do
+      data = %{"values" => %{"integer" => "123", "float" => "45.67", "invalid" => "abc"}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.integer", "function" => "number"},
+        %{"op" => "transform", "path" => "values.float", "function" => "number"},
+        %{"op" => "transform", "path" => "values.invalid", "function" => "number"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["integer"] == 123
+      assert result["values"]["float"] == 45.67
+      assert result["values"]["invalid"] == nil
+    end
+
+    test "converts values to integers" do
+      data = %{"values" => %{"string_int" => "456", "float" => 78.9, "string_float" => "12.34"}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.string_int", "function" => "integer"},
+        %{"op" => "transform", "path" => "values.float", "function" => "integer"},
+        %{"op" => "transform", "path" => "values.string_float", "function" => "integer"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["string_int"] == 456
+      assert result["values"]["float"] == 78
+      assert result["values"]["string_float"] == 12
+    end
+
+    test "converts values to floats" do
+      data = %{"values" => %{"string" => "123.45", "integer" => 67}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.string", "function" => "float"},
+        %{"op" => "transform", "path" => "values.integer", "function" => "float"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["string"] == 123.45
+      assert result["values"]["integer"] == 67.0
+    end
+
+    test "converts values to booleans" do
+      data = %{"values" => %{
+        "true_val" => true,
+        "false_val" => false,
+        "nil_val" => nil,
+        "empty_string" => "",
+        "zero" => 0,
+        "false_string" => "false",
+        "other" => "anything"
+      }}
+      
+      operations = Enum.map(Map.keys(data["values"]), fn key ->
+        %{"op" => "transform", "path" => "values.#{key}", "function" => "boolean"}
+      end)
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["true_val"] == true
+      assert result["values"]["false_val"] == false
+      assert result["values"]["nil_val"] == false
+      assert result["values"]["empty_string"] == false
+      assert result["values"]["zero"] == false
+      assert result["values"]["false_string"] == false
+      assert result["values"]["other"] == true
+    end
+
+    test "calculates length of strings, lists, and maps" do
+      data = %{"values" => %{
+        "string" => "hello",
+        "list" => [1, 2, 3, 4],
+        "map" => %{"a" => 1, "b" => 2, "c" => 3}
+      }}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.string", "function" => "length"},
+        %{"op" => "transform", "path" => "values.list", "function" => "length"},
+        %{"op" => "transform", "path" => "values.map", "function" => "length"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["string"] == 5
+      assert result["values"]["list"] == 4
+      assert result["values"]["map"] == 3
+    end
+
+    test "reverses strings and lists" do
+      data = %{"values" => %{"string" => "hello", "list" => [1, 2, 3]}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.string", "function" => "reverse"},
+        %{"op" => "transform", "path" => "values.list", "function" => "reverse"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["string"] == "olleh"
+      assert result["values"]["list"] == [3, 2, 1]
+    end
+
+    test "splits strings with custom delimiter" do
+      data = %{"text" => "apple,banana,cherry"}
+      operation = %{"op" => "transform", "path" => "text", "function" => "split", "args" => [","]}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["text"] == ["apple", "banana", "cherry"]
+    end
+
+    test "splits strings with default delimiter" do
+      data = %{"text" => "hello world test"}
+      operation = %{"op" => "transform", "path" => "text", "function" => "split"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["text"] == ["hello", "world", "test"]
+    end
+
+    test "joins lists with custom delimiter" do
+      data = %{"items" => ["apple", "banana", "cherry"]}
+      operation = %{"op" => "transform", "path" => "items", "function" => "join", "args" => [", "]}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["items"] == "apple, banana, cherry"
+    end
+
+    test "joins lists with default delimiter" do
+      data = %{"items" => ["hello", "world"]}
+      operation = %{"op" => "transform", "path" => "items", "function" => "join"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["items"] == "hello world"
+    end
+
+    test "calculates absolute value of numbers" do
+      data = %{"values" => %{"positive" => 5, "negative" => -10, "zero" => 0}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.positive", "function" => "abs"},
+        %{"op" => "transform", "path" => "values.negative", "function" => "abs"},
+        %{"op" => "transform", "path" => "values.zero", "function" => "abs"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["positive"] == 5
+      assert result["values"]["negative"] == 10
+      assert result["values"]["zero"] == 0
+    end
+
+    test "rounds numbers with precision" do
+      data = %{"values" => %{"pi" => 3.14159, "simple" => 2.7}}
+      
+      operations = [
+        %{"op" => "transform", "path" => "values.pi", "function" => "round", "args" => [2]},
+        %{"op" => "transform", "path" => "values.simple", "function" => "round"}
+      ]
+
+      result = Enum.reduce(operations, data, fn op, acc ->
+        DslInterpreter.apply_transform_operation_public(acc, op)
+      end)
+
+      assert result["values"]["pi"] == 3.14
+      assert result["values"]["simple"] == 3.0
+    end
+
+    test "transforms array elements with wildcard" do
+      data = %{"users" => [%{"name" => "john"}, %{"name" => "jane"}]}
+      operation = %{"op" => "transform", "path" => "users[].name", "function" => "uppercase"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert Enum.at(result["users"], 0)["name"] == "JOHN"
+      assert Enum.at(result["users"], 1)["name"] == "JANE"
+    end
+
+    test "handles unknown function gracefully" do
+      data = %{"value" => "test"}
+      operation = %{"op" => "transform", "path" => "value", "function" => "unknown_function"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result["value"] == "test"  # unchanged
+    end
+
+    test "handles missing path gracefully" do
+      data = %{"other" => "value"}
+      operation = %{"op" => "transform", "path" => "missing.path", "function" => "uppercase"}
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      # Should create the nested structure, but transform function returns original value for non-strings
+      assert get_in(result, ["missing", "path"]) == nil
+    end
+
+    test "ignores invalid operation format" do
+      data = %{"test" => "value"}
+      operation = %{"op" => "transform"}  # missing required parameters
+
+      result = DslInterpreter.apply_transform_operation_public(data, operation)
+
+      assert result == data  # unchanged
+    end
+  end
 end
