@@ -351,7 +351,17 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   # Regular resolve function for non-array cases
   defp resolve_set_value(source_path, working_map) do
-    get_nested_value(working_map, parse_path(source_path))
+    case String.ends_with?(source_path, ".length") do
+      true ->
+        array_path = String.trim_trailing(source_path, ".length")
+        case get_nested_value(working_map, parse_path(array_path)) do
+          list when is_list(list) -> length(list)
+          nil -> 0
+          _ -> 1  # Non-list, non-nil values count as 1
+        end
+      false ->
+        get_nested_value(working_map, parse_path(source_path))
+    end
   end
 
   # Rename operation: renames fields according to mapping
@@ -662,9 +672,15 @@ defmodule PolarityReducerEx.DslInterpreter do
     path
     |> String.split(".")
     |> Enum.flat_map(fn segment ->
-      case String.contains?(segment, "[]") do
-        true -> String.split(segment, "[]", trim: true) ++ ["[]"]
-        false -> [segment]
+      cond do
+        String.contains?(segment, "[]") ->
+          String.split(segment, "[]", trim: true) ++ ["[]"]
+        Regex.match?(~r/^(.+)\[(\d+)\]$/, segment) ->
+          # Handle array index notation like "cvssMetricV31[0]"
+          [_full, base, index] = Regex.run(~r/^(.+)\[(\d+)\]$/, segment)
+          [base, "[#{index}]"]
+        true ->
+          [segment]
       end
     end)
     |> Enum.reject(&(&1 == ""))
@@ -681,6 +697,14 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp get_nested_value(list, ["[]" | rest]) when is_list(list) do
     Enum.map(list, &get_nested_value(&1, rest))
   end
+  defp get_nested_value(list, ["[" <> index_str | rest]) when is_list(list) do
+    # Handle specific array indices like "[0]", "[1]", etc.
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> nil
+      item -> get_nested_value(item, rest)
+    end
+  end
   defp get_nested_value(_, _), do: nil
 
   # Put a nested value using a parsed path with wildcard support
@@ -695,6 +719,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   defp put_nested_value(list, ["[]" | rest], value) when is_list(list) do
     Enum.map(list, &put_nested_value(&1, rest, value))
   end
+  defp put_nested_value(list, ["[" <> index_str | rest], value) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item -> 
+        updated_item = put_nested_value(item, rest, value)
+        List.replace_at(list, index, updated_item)
+    end
+  end
   defp put_nested_value(data, _, _), do: data
 
   # Update a nested value using a function with wildcard support
@@ -708,6 +742,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
   defp update_at_path(list, ["[]" | rest], func) when is_list(list) do
     Enum.map(list, &update_at_path(&1, rest, func))
+  end
+  defp update_at_path(list, ["[" <> index_str | rest], func) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item -> 
+        updated_item = update_at_path(item, rest, func)
+        List.replace_at(list, index, updated_item)
+    end
   end
   defp update_at_path(data, _, _), do: data
 
@@ -724,6 +768,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
   defp drop_at_path(list, ["[]" | rest]) when is_list(list) do
     Enum.map(list, &drop_at_path(&1, rest))
+  end
+  defp drop_at_path(list, ["[" <> index_str | rest]) when is_list(list) do
+    # Handle specific array indices
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list  # Index out of bounds, return unchanged
+      item -> 
+        updated_item = drop_at_path(item, rest)
+        List.replace_at(list, index, updated_item)
+    end
   end
   defp drop_at_path(data, _), do: data
 
@@ -1312,5 +1366,16 @@ defmodule PolarityReducerEx.DslInterpreter do
   @doc false
   def apply_operation_public(working_map, operation) do
     apply_operation(working_map, operation)
+  end
+
+  @doc false
+  def parse_path_public(path) do
+    parse_path(path)
+  end
+
+  @doc false
+  def get_nested_value_public(data, path) do
+    parsed_path = parse_path(path)
+    get_nested_value(data, parsed_path)
   end
 end
