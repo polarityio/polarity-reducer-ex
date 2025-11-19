@@ -731,6 +731,167 @@ Perform aggregations on array data using special variables.
 
 **Note:** Currently only `$min()` and `$max()` aggregation functions are implemented. The operation replaces the array at the specified path with the aggregated result object.
 
+#### hoist_map_values
+Move values from a nested map to the parent level.
+
+**Schema:**
+```json
+{
+  "op": "hoist_map_values",
+  "path": "string",
+  "child_key": "string",
+  "replace_parent": "boolean"
+}
+```
+
+**Parameters:**
+- `path`: Path to the parent map containing the nested map
+- `child_key`: Key of the nested map whose values should be hoisted
+- `replace_parent`: If true, replaces parent with child values; if false, merges them
+
+**Example:**
+```json
+{
+  "op": "hoist_map_values",
+  "path": "user",
+  "child_key": "profile",
+  "replace_parent": true
+}
+```
+
+#### list_to_dynamic_map
+Convert array to a map by grouping items by a key field.
+
+**Schema:**
+```json
+{
+  "op": "list_to_dynamic_map",
+  "path": "string",
+  "key_from": "string",
+  "value_from": "string"
+}
+```
+
+**Parameters:**
+- `path`: Path to the array to transform
+- `key_from`: Field to use as grouping key
+- `value_from`: Field to extract as values (creates arrays of values for each key)
+
+**Example:**
+```json
+{
+  "op": "list_to_dynamic_map",
+  "path": "orders",
+  "key_from": "status",
+  "value_from": "amount"
+}
+```
+
+#### project_and_replace
+Replace the entire working data with a projected subset.
+
+**Schema:**
+```json
+{
+  "op": "project_and_replace",
+  "projection": {
+    "new_field": "source_field",
+    "...": "..."
+  }
+}
+```
+
+**Parameters:**
+- `projection`: Object mapping new field names to source paths
+
+**Example:**
+```json
+{
+  "op": "project_and_replace",
+  "projection": {
+    "id": "user.id",
+    "name": "user.profile.name",
+    "email": "user.contact.email"
+  }
+}
+```
+
+#### promote_list_to_keys
+Convert array items to key-value pairs at the parent level.
+
+**Schema:**
+```json
+{
+  "op": "promote_list_to_keys",
+  "path": "string",
+  "child_list": "string",
+  "key_from": "string",
+  "value_from": "string"
+}
+```
+
+**Parameters:**
+- `path`: Path to the parent object
+- `child_list`: Name of the array field to promote
+- `key_from`: Field in array items to use as keys
+- `value_from`: Field in array items to use as values
+
+**Example:**
+```json
+{
+  "op": "promote_list_to_keys",
+  "path": "config",
+  "child_list": "settings",
+  "key_from": "name",
+  "value_from": "value"
+}
+```
+
+#### truncate_list
+Limit list size and provide truncation metadata.
+
+**Schema:**
+```json
+{
+  "op": "truncate_list",
+  "path": "string",
+  "max_size": "number",
+  "shape": {
+    "data": "$truncated",
+    "metadata": {
+      "truncated": "$was_truncated",
+      "original_count": "$original_count"
+    }
+  }
+}
+```
+
+**Parameters:**
+- `path`: Path to the array to truncate
+- `max_size`: Maximum number of items to keep
+- `shape`: Output structure with special variables
+
+**Special Variables:**
+- `$truncated`: The truncated array
+- `$was_truncated`: Boolean indicating if truncation occurred
+- `$original_count`: Original array length
+
+**Example:**
+```json
+{
+  "op": "truncate_list",
+  "path": "results",
+  "max_size": 10,
+  "shape": {
+    "items": "$truncated",
+    "meta": {
+      "has_more": "$was_truncated",
+      "total": "$original_count"
+    }
+  }
+}
+```
+
 ## Output Templates
 
 The output section defines how to construct the final result using variable references and static values.

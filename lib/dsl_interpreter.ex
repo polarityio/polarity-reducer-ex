@@ -724,7 +724,7 @@ defmodule PolarityReducerEx.DslInterpreter do
     index = String.trim_trailing(index_str, "]") |> String.to_integer()
     case Enum.at(list, index) do
       nil -> list  # Index out of bounds, return unchanged
-      item -> 
+      item ->
         updated_item = put_nested_value(item, rest, value)
         List.replace_at(list, index, updated_item)
     end
@@ -748,7 +748,7 @@ defmodule PolarityReducerEx.DslInterpreter do
     index = String.trim_trailing(index_str, "]") |> String.to_integer()
     case Enum.at(list, index) do
       nil -> list  # Index out of bounds, return unchanged
-      item -> 
+      item ->
         updated_item = update_at_path(item, rest, func)
         List.replace_at(list, index, updated_item)
     end
@@ -774,7 +774,7 @@ defmodule PolarityReducerEx.DslInterpreter do
     index = String.trim_trailing(index_str, "]") |> String.to_integer()
     case Enum.at(list, index) do
       nil -> list  # Index out of bounds, return unchanged
-      item -> 
+      item ->
         updated_item = drop_at_path(item, rest)
         List.replace_at(list, index, updated_item)
     end
@@ -1226,105 +1226,6 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   @doc false
-  def apply_drop_operation_public(working_map, operation) do
-    apply_drop_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_project_operation_public(working_map, operation) do
-    apply_project_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_project_and_replace_operation_public(working_map, operation) do
-    apply_project_and_replace_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_hoist_map_values_operation_public(working_map, operation) do
-    apply_hoist_map_values_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_list_to_map_operation_public(working_map, operation) do
-    apply_list_to_map_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_list_to_dynamic_map_operation_public(working_map, operation) do
-    apply_list_to_dynamic_map_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_promote_list_to_keys_operation_public(working_map, operation) do
-    apply_promote_list_to_keys_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_truncate_list_operation_public(working_map, operation) do
-    apply_truncate_list_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_aggregate_list_operation_public(working_map, operation) do
-    apply_aggregate_list_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_set_operation_public(working_map, operation) do
-    apply_set_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_prune_operation_public(working_map, operation) do
-    apply_prune_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_rename_operation_public(working_map, operation) do
-    apply_rename_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_format_date_operation_public(working_map, operation) do
-    apply_format_date_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_parse_date_operation_public(working_map, operation) do
-    apply_parse_date_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_date_add_operation_public(working_map, operation) do
-    apply_date_add_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_date_diff_operation_public(working_map, operation) do
-    apply_date_diff_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_current_timestamp_operation_public(working_map, operation) do
-    apply_current_timestamp_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_transform_operation_public(working_map, operation) do
-    apply_transform_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_copy_operation_public(working_map, operation) do
-    apply_copy_operation(working_map, operation)
-  end
-
-  @doc false
-  def apply_move_operation_public(working_map, operation) do
-    apply_move_operation(working_map, operation)
-  end
-
   # Merge operation - combines objects or arrays from multiple paths
   defp apply_merge_operation(working_map, %{"sources" => sources, "to" => to_path}) when is_list(sources) do
     # Collect values from all source paths
@@ -1356,12 +1257,6 @@ defmodule PolarityReducerEx.DslInterpreter do
         end
     end
   end
-
-  def apply_merge_operation_public(working_map, operation) do
-    apply_merge_operation(working_map, operation)
-  end
-
-
 
   @doc false
   def apply_operation_public(working_map, operation) do

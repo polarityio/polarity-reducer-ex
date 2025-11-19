@@ -208,30 +208,12 @@ defmodule PolarityReducerEx.DslPipelineTester do
     {final_working, steps}
   end
 
-  # Apply a single operation (borrowed from DslInterpreter logic)
+  # Apply a single operation using unified DslInterpreter function
   defp apply_single_operation(working_map, operation) do
-    case operation do
-      %{"op" => "drop"} -> apply_drop_operation(working_map, operation)
-      %{"op" => "project"} -> apply_project_operation(working_map, operation)
-      %{"op" => "project_and_replace"} -> apply_project_and_replace_operation(working_map, operation)
-      %{"op" => "hoist_map_values"} -> apply_hoist_map_values_operation(working_map, operation)
-      %{"op" => "list_to_map"} -> apply_list_to_map_operation(working_map, operation)
-      %{"op" => "list_to_dynamic_map"} -> apply_list_to_dynamic_map_operation(working_map, operation)
-      %{"op" => "promote_list_to_keys"} -> apply_promote_list_to_keys_operation(working_map, operation)
-      %{"op" => "truncate_list"} -> apply_truncate_list_operation(working_map, operation)
-      %{"op" => "aggregate_list"} -> apply_aggregate_list_operation(working_map, operation)
-      %{"op" => "prune"} -> apply_prune_operation(working_map, operation)
-      %{"op" => "rename"} -> apply_rename_operation(working_map, operation)
-      %{"op" => "format_date"} -> apply_format_date_operation(working_map, operation)
-      %{"op" => "parse_date"} -> apply_parse_date_operation(working_map, operation)
-      %{"op" => "date_add"} -> apply_date_add_operation(working_map, operation)
-      %{"op" => "date_diff"} -> apply_date_diff_operation(working_map, operation)
-      %{"op" => "current_timestamp"} -> apply_current_timestamp_operation(working_map, operation)
-      _ -> working_map
-    end
+    DslInterpreter.apply_operation_public(working_map, operation)
   end
 
-  # Delegate to DslInterpreter private functions (we'll need to make them public or copy them)
+  # Delegate to DslInterpreter public helper functions
   defp resolve_root_object(data_map, root_config) do
     DslInterpreter.resolve_root_object_public(data_map, root_config)
   end
@@ -239,24 +221,6 @@ defmodule PolarityReducerEx.DslPipelineTester do
   defp build_output_object(original_data, working_data, output_spec) do
     DslInterpreter.build_output_object_public(original_data, working_data, output_spec)
   end
-
-  # Operation delegations (these will need to be exposed from DslInterpreter)
-  defp apply_drop_operation(working_map, operation), do: DslInterpreter.apply_drop_operation_public(working_map, operation)
-  defp apply_project_operation(working_map, operation), do: DslInterpreter.apply_project_operation_public(working_map, operation)
-  defp apply_project_and_replace_operation(working_map, operation), do: DslInterpreter.apply_project_and_replace_operation_public(working_map, operation)
-  defp apply_hoist_map_values_operation(working_map, operation), do: DslInterpreter.apply_hoist_map_values_operation_public(working_map, operation)
-  defp apply_list_to_map_operation(working_map, operation), do: DslInterpreter.apply_list_to_map_operation_public(working_map, operation)
-  defp apply_list_to_dynamic_map_operation(working_map, operation), do: DslInterpreter.apply_list_to_dynamic_map_operation_public(working_map, operation)
-  defp apply_promote_list_to_keys_operation(working_map, operation), do: DslInterpreter.apply_promote_list_to_keys_operation_public(working_map, operation)
-  defp apply_truncate_list_operation(working_map, operation), do: DslInterpreter.apply_truncate_list_operation_public(working_map, operation)
-  defp apply_aggregate_list_operation(working_map, operation), do: DslInterpreter.apply_aggregate_list_operation_public(working_map, operation)
-  defp apply_prune_operation(working_map, operation), do: DslInterpreter.apply_prune_operation_public(working_map, operation)
-  defp apply_rename_operation(working_map, operation), do: DslInterpreter.apply_rename_operation_public(working_map, operation)
-  defp apply_format_date_operation(working_map, operation), do: DslInterpreter.apply_format_date_operation_public(working_map, operation)
-  defp apply_parse_date_operation(working_map, operation), do: DslInterpreter.apply_parse_date_operation_public(working_map, operation)
-  defp apply_date_add_operation(working_map, operation), do: DslInterpreter.apply_date_add_operation_public(working_map, operation)
-  defp apply_date_diff_operation(working_map, operation), do: DslInterpreter.apply_date_diff_operation_public(working_map, operation)
-  defp apply_current_timestamp_operation(working_map, operation), do: DslInterpreter.apply_current_timestamp_operation_public(working_map, operation)
 
   # ===== UTILITY FUNCTIONS =====
 
