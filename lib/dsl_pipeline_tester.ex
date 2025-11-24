@@ -11,6 +11,66 @@ defmodule PolarityReducerEx.DslPipelineTester do
 
   alias PolarityReducerEx.DslInterpreter
   require Logger
+    # ===== VALIDATOR FUNCTIONS =====
+
+  @doc """
+  Public validator for pipeline structure and version only.
+
+  ## Parameters
+  - `config`: The DSL pipeline config map
+
+  ## Returns
+  - `:ok` if valid
+  - `{:error, reason}` if invalid
+  """
+  def validate_pipeline_public(config) when is_map(config) do
+    required_keys = ["version", "pipeline"]
+    missing_keys = Enum.filter(required_keys, &(not Map.has_key?(config, &1)))
+
+    case missing_keys do
+      [] ->
+        version = config["version"]
+        version_valid = cond do
+          is_binary(version) and String.length(version) > 0 -> true
+          is_integer(version) -> true
+          true -> false
+        end
+        
+        if version_valid do
+          validate_pipeline_operations(config["pipeline"])
+        else
+          {:error, "Invalid version format: must be non-empty string or integer"}
+        end
+      keys -> {:error, "Missing required keys: #{Enum.join(keys, ", ")}"}
+    end
+  end
+
+  @doc """
+  Full validator for input, pipeline, and output object.
+
+  ## Parameters
+  - `input`: The input data map
+  - `config`: The DSL pipeline config map
+  - `output`: The output object (optional)
+
+  ## Returns
+  - `:ok` if valid
+  - `{:error, reason}` if invalid
+  """
+  def validate_full_object(input, config, output \\ nil) do
+    cond do
+      not is_map(input) -> {:error, "Input must be a map"}
+      not is_map(config) -> {:error, "Config must be a map"}
+      output != nil and not is_map(output) -> {:error, "Output must be a map if provided"}
+      true ->
+        # Validate config using internal validator
+        case validate_dsl_config(config) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
 
   @doc """
   Test a pipeline with step-by-step execution and detailed output.
@@ -240,17 +300,74 @@ defmodule PolarityReducerEx.DslPipelineTester do
 
   # Validate DSL configuration
   defp validate_dsl_config(config) when is_map(config) do
-    # Only pipeline is truly required, root and output have defaults
-    required_keys = ["pipeline"]
+    # Require both version and pipeline keys
+    required_keys = ["version", "pipeline"]
     missing_keys = Enum.filter(required_keys, &(not Map.has_key?(config, &1)))
 
     case missing_keys do
-      [] -> :ok
+      [] ->
+        # Validate version format (simple: must be a string or integer)
+        version = config["version"]
+        version_ok = cond do
+          is_binary(version) and String.length(version) > 0 -> :ok
+          is_integer(version) -> :ok
+          true -> {:error, "Invalid version format: must be non-empty string or integer"}
+        end
+        case version_ok do
+          :ok -> validate_pipeline_operations(config["pipeline"])
+          error -> error
+        end
       keys -> {:error, "Missing required keys: #{Enum.join(keys, ", ")}"}
     end
   end
 
-  defp validate_dsl_config(_), do: {:error, "DSL config must be a map"}
+  # Validate each operation in the pipeline
+  defp validate_pipeline_operations(pipeline) when is_list(pipeline) do
+    errors =
+      pipeline
+      |> Enum.with_index(1)
+      |> Enum.flat_map(fn {op, idx} ->
+        case validate_operation(op) do
+          :ok -> []
+          {:error, reason} -> ["Step #{idx}: #{reason}"]
+        end
+      end)
+    if errors == [], do: :ok, else: {:error, Enum.join(errors, "; ")}
+  end
+  defp validate_pipeline_operations(_), do: {:error, "Pipeline must be a list"}
+
+  # Validate a single operation structure
+  defp validate_operation(%{"op" => op} = operation) do
+    case op do
+      "drop" ->
+        if is_list(operation["paths"]) and Enum.all?(operation["paths"], &is_binary/1), do: :ok, else: {:error, "'drop' requires 'paths' as a list of strings"}
+      "project" ->
+        if is_binary(operation["path"]) and is_map(operation["mapping"]), do: :ok, else: {:error, "'project' requires 'path' (string) and 'mapping' (map)"}
+      "project_and_replace" ->
+        if is_map(operation["projection"]), do: :ok, else: {:error, "'project_and_replace' requires 'projection' (map)"}
+      "list_to_map" ->
+        if is_binary(operation["path"]) and is_binary(operation["key_from"]) and is_binary(operation["value_from"]), do: :ok, else: {:error, "'list_to_map' requires 'path', 'key_from', 'value_from' (all strings)"}
+      "truncate_list" ->
+        if is_binary(operation["path"]) and is_integer(operation["max_size"]) and operation["max_size"] > 0, do: :ok, else: {:error, "'truncate_list' requires 'path' (string) and 'max_size' (positive integer)"}
+      "prune" ->
+        :ok
+      "rename" ->
+        if is_map(operation["mapping"]) and Enum.all?(Map.keys(operation["mapping"]), &is_binary/1), do: :ok, else: {:error, "'rename' requires 'mapping' (map with string keys)"}
+      "format_date" ->
+        if is_binary(operation["path"]) and is_binary(operation["format"]), do: :ok, else: {:error, "'format_date' requires 'path' and 'format' (strings)"}
+      "parse_date" ->
+        if is_binary(operation["path"]), do: :ok, else: {:error, "'parse_date' requires 'path' (string)"}
+      "date_add" ->
+        if is_binary(operation["path"]) and is_integer(operation["amount"]) and is_binary(operation["unit"]), do: :ok, else: {:error, "'date_add' requires 'path' (string), 'amount' (integer), 'unit' (string)"}
+      "date_diff" ->
+        if is_binary(operation["from_path"]) and is_binary(operation["to_path"]) and is_binary(operation["result_path"]), do: :ok, else: {:error, "'date_diff' requires 'from_path', 'to_path', 'result_path' (strings)"}
+      "current_timestamp" ->
+        if is_binary(operation["path"]), do: :ok, else: {:error, "'current_timestamp' requires 'path' (string)"}
+      _ ->
+        :ok # For unknown ops, skip strict validation for now
+    end
+  end
+  defp validate_operation(_), do: {:error, "Operation must be a map with 'op' field"}
 
   # ===== DESCRIPTION FUNCTIONS =====
 

@@ -942,21 +942,6 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   # Parse datetime string with auto-detection or specific format
   defp parse_datetime_string(value, "auto") do
-    # Try common formats in order
-    formats = [
-      # ISO 8601 formats
-      ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
-      ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/,
-      ~r/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
-      ~r/^\d{4}-\d{2}-\d{2}$/,
-      # US formats
-      ~r/^\d{1,2}\/\d{1,2}\/\d{4}$/,
-      ~r/^\d{1,2}-\d{1,2}-\d{4}$/,
-      # Unix timestamp
-      ~r/^\d{10}$/,
-      ~r/^\d{13}$/
-    ]
-
     cond do
       Regex.match?(~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, value) ->
         case DateTime.from_iso8601(value) do
@@ -992,7 +977,7 @@ defmodule PolarityReducerEx.DslInterpreter do
     end
   end
 
-  defp parse_datetime_string(value, format) do
+  defp parse_datetime_string(value, _format) do
     # For specific formats, we'd need more sophisticated parsing
     # For now, fall back to auto-detection
     parse_datetime_string(value, "auto")

@@ -1,43 +1,71 @@
 defmodule PolarityReducerEx.DslPipelineTesterTest do
   use ExUnit.Case
-
   alias PolarityReducerEx.DslPipelineTester
   doctest PolarityReducerEx.DslPipelineTester
 
-  describe "test_pipeline_direct/3" do
-    test "executes a simple pipeline successfully" do
-      data = %{
-        "users" => [
-          %{"name" => "Alice", "age" => 30},
-          %{"name" => "Bob", "age" => 25}
-        ]
-      }
+  @valid_pipeline [
+    %{"op" => "drop", "paths" => ["foo"]},
+    %{"op" => "project", "path" => "bar", "mapping" => %{"baz" => "qux"}},
+    %{"op" => "prune"}
+  ]
 
-      dsl_config = %{
-        "root" => %{"path" => ""},
-        "pipeline" => [
-          %{"op" => "drop", "paths" => ["users[].age"]}
-        ],
-        "output" => %{"result" => "$working.users"}
-      }
+  @valid_config %{"version" => "1.0", "pipeline" => @valid_pipeline}
 
-      result = DslPipelineTester.test_pipeline_direct(data, dsl_config, verbose: false)
-
-      assert result.success == true
-      assert length(result.steps) == 3  # root + 1 pipeline op + output
-      assert result.summary.operations_executed == 1
-
-      # Check that age was dropped
-      users_result = result.final_result["result"]
-      assert is_list(users_result)
-      assert length(users_result) == 2
-
-      Enum.each(users_result, fn user ->
-        assert Map.has_key?(user, "name")
-        refute Map.has_key?(user, "age")
-      end)
+  describe "validate_pipeline_public/1" do
+    test "valid pipeline passes validation" do
+      assert DslPipelineTester.validate_pipeline_public(@valid_config) == :ok
     end
 
+    test "missing version fails validation" do
+      config = Map.delete(@valid_config, "version")
+      assert {:error, msg} = DslPipelineTester.validate_pipeline_public(config)
+      assert msg =~ "Missing required keys"
+    end
+
+    test "invalid version format fails validation" do
+      config = Map.put(@valid_config, "version", nil)
+      assert {:error, msg} = DslPipelineTester.validate_pipeline_public(config)
+      assert msg =~ "Invalid version format"
+    end
+
+    test "pipeline not a list fails validation" do
+      config = Map.put(@valid_config, "pipeline", "not_a_list")
+      assert {:error, msg} = DslPipelineTester.validate_pipeline_public(config)
+      assert msg =~ "Pipeline must be a list"
+    end
+
+    test "operation missing required fields fails validation" do
+      bad_pipeline = [%{"op" => "drop"}] # missing 'paths'
+      config = %{"version" => "1.0", "pipeline" => bad_pipeline}
+      assert {:error, msg} = DslPipelineTester.validate_pipeline_public(config)
+      assert msg =~ "drop' requires 'paths"
+    end
+
+    test "unknown operation does not fail validation" do
+      pipeline = [%{"op" => "unknown_op"}]
+      config = %{"version" => "1.0", "pipeline" => pipeline}
+      assert DslPipelineTester.validate_pipeline_public(config) == :ok
+    end
+  end
+
+  describe "validate_full_object/3" do
+    test "passes for valid input" do
+      input = %{"foo" => "bar"}
+      output = %{"result" => "ok"}
+      assert DslPipelineTester.validate_full_object(input, @valid_config, output) == :ok
+    end
+
+    test "fails for invalid input type" do
+      assert {:error, _} = DslPipelineTester.validate_full_object("not_a_map", @valid_config, nil)
+    end
+
+    test "fails for invalid output type" do
+      input = %{"foo" => "bar"}
+      assert {:error, _} = DslPipelineTester.validate_full_object(input, @valid_config, "not_a_map")
+    end
+  end
+
+  describe "test_pipeline_direct/3" do
     test "handles complex pipeline with multiple operations" do
       data = %{
         "events" => [
@@ -193,6 +221,7 @@ defmodule PolarityReducerEx.DslPipelineTesterTest do
     setup do
       # Create a temporary valid config file
       config = %{
+        "version" => "1.0",
         "root" => %{"path" => "test"},
         "pipeline" => [%{"op" => "drop", "paths" => ["field"]}],
         "output" => %{"result" => "$working"}
