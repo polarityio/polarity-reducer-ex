@@ -215,6 +215,382 @@ defmodule PolarityReducerEx.DslOperationsTest do
 
       assert result == expected
     end
+
+    test "projects at a nested dot path" do
+      data = %{
+        "data" => %{
+          "users" => [
+            %{"id" => 1, "name" => "Alice", "secret" => "x"},
+            %{"id" => 2, "name" => "Bob", "secret" => "y"}
+          ]
+        }
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "data.users",
+        "mapping" => %{"user_id" => "id", "display_name" => "name"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      expected = %{
+        "data" => %{
+          "users" => [
+            %{"user_id" => 1, "display_name" => "Alice"},
+            %{"user_id" => 2, "display_name" => "Bob"}
+          ]
+        }
+      }
+
+      assert result == expected
+    end
+
+    test "projects through array wildcard path" do
+      data = %{
+        "alerts" => [
+          %{
+            "id" => "a1",
+            "entities" => [
+              %{"name" => "srv1", "type" => "server", "internal" => "x1"},
+              %{"name" => "srv2", "type" => "server", "internal" => "x2"}
+            ]
+          },
+          %{
+            "id" => "a2",
+            "entities" => [
+              %{"name" => "db1", "type" => "database", "internal" => "y1"}
+            ]
+          }
+        ]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "alerts[].entities",
+        "mapping" => %{"entity_name" => "name", "entity_type" => "type"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      expected = %{
+        "alerts" => [
+          %{
+            "id" => "a1",
+            "entities" => [
+              %{"entity_name" => "srv1", "entity_type" => "server"},
+              %{"entity_name" => "srv2", "entity_type" => "server"}
+            ]
+          },
+          %{
+            "id" => "a2",
+            "entities" => [
+              %{"entity_name" => "db1", "entity_type" => "database"}
+            ]
+          }
+        ]
+      }
+
+      assert result == expected
+    end
+
+    test "projects a single map (not a list)" do
+      data = %{
+        "user" => %{"id" => 1, "name" => "Alice", "secret" => "x"}
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "user",
+        "mapping" => %{"user_id" => "id", "display_name" => "name"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{
+        "user" => %{"user_id" => 1, "display_name" => "Alice"}
+      }
+    end
+
+    test "project is a no-op when target is not a map or list" do
+      data = %{"value" => 42}
+
+      operation = %{
+        "op" => "project",
+        "path" => "value",
+        "mapping" => %{"x" => "anything"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"value" => 42}
+    end
+
+    test "project with missing source fields yields nil values" do
+      data = %{
+        "users" => [
+          %{"id" => 1, "name" => "Alice"},
+          %{"id" => 2}
+        ]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "users",
+        "mapping" => %{"user_id" => "id", "display_name" => "name", "email" => "contact.email"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{
+        "users" => [
+          %{"user_id" => 1, "display_name" => "Alice", "email" => nil},
+          %{"user_id" => 2, "display_name" => nil, "email" => nil}
+        ]
+      }
+    end
+
+    test "project with empty mapping produces empty maps" do
+      data = %{
+        "users" => [
+          %{"id" => 1, "name" => "Alice"}
+        ]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "users",
+        "mapping" => %{}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"users" => [%{}]}
+    end
+
+    test "project on empty list" do
+      data = %{"users" => []}
+
+      operation = %{
+        "op" => "project",
+        "path" => "users",
+        "mapping" => %{"user_id" => "id"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"users" => []}
+    end
+
+    test "project on a path holding nil still projects" do
+      data = %{"user" => nil}
+
+      operation = %{
+        "op" => "project",
+        "path" => "user",
+        "mapping" => %{"x" => "anything"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"user" => nil}
+    end
+
+    test "project with nonexistent path is a no-op" do
+      data = %{"items" => [%{"id" => 1}]}
+
+      operation = %{
+        "op" => "project",
+        "path" => "nonexistent.deep.path",
+        "mapping" => %{"x" => "id"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"items" => [%{"id" => 1}]}
+    end
+
+    test "project with malformed operation (missing mapping) is a no-op" do
+      data = %{"users" => [%{"id" => 1}]}
+
+      operation = %{"op" => "project", "path" => "users"}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"users" => [%{"id" => 1}]}
+    end
+
+    test "project with malformed operation (missing path) is a no-op" do
+      data = %{"users" => [%{"id" => 1}]}
+
+      operation = %{"op" => "project", "mapping" => %{"x" => "id"}}
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"users" => [%{"id" => 1}]}
+    end
+
+    test "project through multiple nested array wildcards" do
+      data = %{
+        "groups" => [
+          %{
+            "name" => "g1",
+            "members" => [
+              %{"id" => 1, "role" => "admin", "secret" => "x"},
+              %{"id" => 2, "role" => "user", "secret" => "y"}
+            ]
+          },
+          %{
+            "name" => "g2",
+            "members" => [
+              %{"id" => 3, "role" => "viewer", "secret" => "z"}
+            ]
+          }
+        ]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "groups[].members",
+        "mapping" => %{"member_id" => "id", "member_role" => "role"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{
+        "groups" => [
+          %{
+            "name" => "g1",
+            "members" => [
+              %{"member_id" => 1, "member_role" => "admin"},
+              %{"member_id" => 2, "member_role" => "user"}
+            ]
+          },
+          %{
+            "name" => "g2",
+            "members" => [
+              %{"member_id" => 3, "member_role" => "viewer"}
+            ]
+          }
+        ]
+      }
+    end
+
+    test "project preserves sibling keys at each level" do
+      data = %{
+        "meta" => "keep",
+        "data" => %{
+          "label" => "keep too",
+          "items" => [
+            %{"id" => 1, "name" => "Alice", "drop_me" => "x"}
+          ]
+        }
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "data.items",
+        "mapping" => %{"user_id" => "id"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result["meta"] == "keep"
+      assert result["data"]["label"] == "keep too"
+      assert result["data"]["items"] == [%{"user_id" => 1}]
+    end
+
+    test "project at specific array index" do
+      data = %{
+        "users" => [
+          %{"id" => 1, "name" => "Alice", "secret" => "x"},
+          %{"id" => 2, "name" => "Bob", "secret" => "y"}
+        ]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "users[0]",
+        "mapping" => %{"user_id" => "id"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{
+        "users" => [
+          %{"user_id" => 1},
+          %{"id" => 2, "name" => "Bob", "secret" => "y"}
+        ]
+      }
+    end
+
+    test "project at out-of-bounds array index is a no-op" do
+      data = %{
+        "users" => [%{"id" => 1}]
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "users[5]",
+        "mapping" => %{"user_id" => "id"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      assert result == %{"users" => [%{"id" => 1}]}
+    end
+
+    test "projects through dot path combined with array wildcard" do
+      data = %{
+        "data" => %{
+          "alerts" => [
+            %{
+              "id" => "a1",
+              "entities" => [
+                %{"name" => "srv1", "type" => "server", "internal" => "x1"}
+              ]
+            },
+            %{
+              "id" => "a2",
+              "entities" => [
+                %{"name" => "db1", "type" => "database", "internal" => "y1"},
+                %{"name" => "db2", "type" => "database", "internal" => "y2"}
+              ]
+            }
+          ]
+        }
+      }
+
+      operation = %{
+        "op" => "project",
+        "path" => "data.alerts[].entities",
+        "mapping" => %{"entity_name" => "name", "entity_type" => "type"}
+      }
+
+      result = DslInterpreter.apply_operation_public(data, operation)
+
+      expected = %{
+        "data" => %{
+          "alerts" => [
+            %{
+              "id" => "a1",
+              "entities" => [
+                %{"entity_name" => "srv1", "entity_type" => "server"}
+              ]
+            },
+            %{
+              "id" => "a2",
+              "entities" => [
+                %{"entity_name" => "db1", "entity_type" => "database"},
+                %{"entity_name" => "db2", "entity_type" => "database"}
+              ]
+            }
+          ]
+        }
+      }
+
+      assert result == expected
+    end
   end
 
   describe "prune operation" do
