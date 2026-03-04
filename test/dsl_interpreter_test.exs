@@ -176,6 +176,412 @@ defmodule PolarityReducerEx.DslInterpreterTest do
       assert result["result"]["sample"] == "truncated"
     end
 
+    test "truncate_list with documented $truncated variable" do
+      data = %{
+        "alerts" => [
+          %{"id" => 1, "severity" => "high"},
+          %{"id" => 2, "severity" => "medium"},
+          %{"id" => 3, "severity" => "low"},
+          %{"id" => 4, "severity" => "info"},
+          %{"id" => 5, "severity" => "critical"}
+        ]
+      }
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "alerts",
+            "max_size" => 3,
+            "shape" => %{
+              "data" => "$truncated",
+              "metadata" => %{
+                "truncated" => "$was_truncated",
+                "original_count" => "$original_count"
+              }
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.alerts"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == [
+        %{"id" => 1, "severity" => "high"},
+        %{"id" => 2, "severity" => "medium"},
+        %{"id" => 3, "severity" => "low"}
+      ]
+      assert result["result"]["metadata"]["truncated"] == true
+      assert result["result"]["metadata"]["original_count"] == 5
+    end
+
+    test "truncate_list with $was_truncated false when not truncated" do
+      data = %{
+        "items" => [1, 2]
+      }
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 10,
+            "shape" => %{
+              "data" => "$truncated",
+              "was_truncated" => "$was_truncated",
+              "count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == [1, 2]
+      assert result["result"]["was_truncated"] == false
+      assert result["result"]["count"] == 2
+    end
+
+    test "truncate_list with $map_slice extracting fields from truncated list" do
+      data = %{
+        "users" => [
+          %{"name" => "Alice", "age" => 30},
+          %{"name" => "Bob", "age" => 25},
+          %{"name" => "Charlie", "age" => 35},
+          %{"name" => "David", "age" => 28}
+        ]
+      }
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "users",
+            "max_size" => 3,
+            "shape" => %{
+              "user_names" => "$map_slice(0, 3, name)",
+              "total" => "$length"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.users"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["user_names"] == ["Alice", "Bob", "Charlie"]
+      assert result["result"]["total"] == 4
+    end
+
+    test "truncate_list with nested path in arrays" do
+      data = %{
+        "alerts" => [
+          %{"metadata" => %{"vulnerabilitiesData" => %{"all" => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}}},
+          %{"metadata" => %{"vulnerabilitiesData" => %{"all" => [20, 21, 22, 23, 24, 25]}}}
+        ]
+      }
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "alerts[].metadata.vulnerabilitiesData.all",
+            "max_size" => 10,
+            "shape" => %{
+              "data" => "$truncated",
+              "metadata" => %{
+                "truncated" => "$was_truncated",
+                "original_count" => "$original_count"
+              }
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.alerts"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      # First alert had 12 items, should be truncated to 10
+      first_alert = Enum.at(result["result"], 0)
+      assert first_alert["metadata"]["vulnerabilitiesData"]["all"]["data"] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      assert first_alert["metadata"]["vulnerabilitiesData"]["all"]["metadata"]["truncated"] == true
+      assert first_alert["metadata"]["vulnerabilitiesData"]["all"]["metadata"]["original_count"] == 12
+
+      # Second alert had 6 items, should not be truncated
+      second_alert = Enum.at(result["result"], 1)
+      assert second_alert["metadata"]["vulnerabilitiesData"]["all"]["data"] == [20, 21, 22, 23, 24, 25]
+      assert second_alert["metadata"]["vulnerabilitiesData"]["all"]["metadata"]["truncated"] == false
+      assert second_alert["metadata"]["vulnerabilitiesData"]["all"]["metadata"]["original_count"] == 6
+    end
+
+    test "truncate_list with empty list" do
+      data = %{"items" => []}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 5,
+            "shape" => %{
+              "data" => "$truncated",
+              "was_truncated" => "$was_truncated",
+              "count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == []
+      assert result["result"]["was_truncated"] == false
+      assert result["result"]["count"] == 0
+    end
+
+    test "truncate_list with max_size 0" do
+      data = %{"items" => [1, 2, 3]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 0,
+            "shape" => %{
+              "data" => "$truncated",
+              "was_truncated" => "$was_truncated",
+              "count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == []
+      assert result["result"]["was_truncated"] == true
+      assert result["result"]["count"] == 3
+    end
+
+    test "truncate_list with max_size larger than list" do
+      data = %{"items" => [1, 2]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 100,
+            "shape" => %{
+              "data" => "$truncated",
+              "was_truncated" => "$was_truncated",
+              "count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == [1, 2]
+      assert result["result"]["was_truncated"] == false
+      assert result["result"]["count"] == 2
+    end
+
+    test "truncate_list with max_size equal to list length" do
+      data = %{"items" => [1, 2, 3]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 3,
+            "shape" => %{
+              "data" => "$truncated",
+              "was_truncated" => "$was_truncated",
+              "count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == [1, 2, 3]
+      assert result["result"]["was_truncated"] == false
+      assert result["result"]["count"] == 3
+    end
+
+    test "truncate_list $slice with out-of-bounds indices" do
+      data = %{"items" => [1, 2, 3]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 2,
+            "shape" => %{
+              "beyond" => "$slice(5, 10)",
+              "partial" => "$slice(1, 100)",
+              "data" => "$truncated"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["beyond"] == []
+      assert result["result"]["partial"] == [2, 3]
+      assert result["result"]["data"] == [1, 2]
+    end
+
+    test "truncate_list $map_slice with missing field in items" do
+      data = %{
+        "users" => [
+          %{"name" => "Alice"},
+          %{"age" => 25},
+          %{"name" => "Charlie", "age" => 35}
+        ]
+      }
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "users",
+            "max_size" => 2,
+            "shape" => %{
+              "names" => "$map_slice(0, 3, name)"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.users"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["names"] == ["Alice", nil, "Charlie"]
+    end
+
+    test "truncate_list with non-list target is a no-op" do
+      data = %{"items" => "not a list"}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 5,
+            "shape" => %{"data" => "$truncated"}
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"] == "not a list"
+    end
+
+    test "truncate_list shape passes through static values unchanged" do
+      data = %{"items" => [1, 2, 3, 4, 5]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 2,
+            "shape" => %{
+              "data" => "$truncated",
+              "label" => "Top items",
+              "version" => 42
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["data"] == [1, 2]
+      assert result["result"]["label"] == "Top items"
+      assert result["result"]["version"] == 42
+    end
+
+    test "truncate_list $slice with malformed params returns nil" do
+      data = %{"items" => [1, 2, 3]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 2,
+            "shape" => %{
+              "bad_slice" => "$slice(abc, def)",
+              "data" => "$truncated"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["bad_slice"] == nil
+      assert result["result"]["data"] == [1, 2]
+    end
+
+    test "truncate_list $length and $original_count are equivalent" do
+      data = %{"items" => [1, 2, 3, 4, 5]}
+
+      dsl = %{
+        "root" => %{"path" => ""},
+        "pipeline" => [
+          %{
+            "op" => "truncate_list",
+            "path" => "items",
+            "max_size" => 3,
+            "shape" => %{
+              "via_length" => "$length",
+              "via_original_count" => "$original_count"
+            }
+          }
+        ],
+        "output" => %{"result" => "$working.items"}
+      }
+
+      result = DslInterpreter.execute(data, dsl)
+
+      assert result["result"]["via_length"] == result["result"]["via_original_count"]
+      assert result["result"]["via_length"] == 5
+    end
+
     test "prune operation removes empty values" do
       data = %{
         "messy" => %{

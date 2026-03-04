@@ -872,9 +872,12 @@ Limit list size and provide truncation metadata.
 - `shape`: Output structure with special variables
 
 **Special Variables:**
-- `$truncated`: The truncated array
+- `$truncated`: The truncated array (first `max_size` items)
 - `$was_truncated`: Boolean indicating if truncation occurred
 - `$original_count`: Original array length
+- `$length`: Alias for `$original_count`
+- `$slice(start, end)`: Extract a slice of the original array
+- `$map_slice(start, end, field)`: Extract a field from each item in a slice
 
 **Example:**
 ```json
