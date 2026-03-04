@@ -1053,7 +1053,14 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   # Process truncate list shape with special variables
-  defp process_truncate_shape(shape, list, max_size) when is_map(shape) do
+  defp process_truncate_shape(shape, list, max_size)
+       when is_map(shape) and not (is_integer(max_size) and max_size >= 0) do
+    # Invalid max_size (non-integer or negative): treat as no-op and return original list
+    list
+  end
+
+  defp process_truncate_shape(shape, list, max_size)
+       when is_map(shape) and is_integer(max_size) and max_size >= 0 do
     original_count = length(list)
     truncated = Enum.take(list, max_size)
     was_truncated = original_count > max_size
@@ -1082,18 +1089,20 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   defp resolve_truncate_value("$slice(" <> rest, list, _truncated, _original_count, _was_truncated, _max_size) do
     case parse_slice_params(rest) do
-      {start_idx, end_idx} -> Enum.slice(list, start_idx, end_idx - start_idx)
+      {start_idx, end_idx} when is_integer(start_idx) and is_integer(end_idx) and end_idx >= start_idx ->
+        Enum.slice(list, start_idx, end_idx - start_idx)
       _ -> nil
     end
   end
 
   defp resolve_truncate_value("$map_slice(" <> rest, list, _truncated, _original_count, _was_truncated, _max_size) do
     case parse_map_slice_params(rest) do
-      {start_idx, end_idx, path} ->
+      {start_idx, end_idx, path} when is_integer(start_idx) and is_integer(end_idx) and end_idx >= start_idx ->
         list
         |> Enum.slice(start_idx, end_idx - start_idx)
         |> Enum.map(&get_nested_value(&1, parse_path(path)))
-      _ -> nil
+      _ ->
+        nil
     end
   end
 
