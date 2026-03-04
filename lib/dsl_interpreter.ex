@@ -173,12 +173,41 @@ defmodule PolarityReducerEx.DslInterpreter do
 
   # Project operation: creates a new structure at a specific path
   defp apply_project_operation(working_map, %{"path" => path, "mapping" => mapping}) do
-    source_data = get_nested_value(working_map, parse_path(path))
-    projected_data = project_data(source_data, mapping)
-    put_nested_value(working_map, parse_path(path), projected_data)
+    parsed = parse_path(path)
+
+    if path_exists?(working_map, parsed) do
+      project_at_path(working_map, parsed, mapping)
+    else
+      working_map
+    end
   end
 
   defp apply_project_operation(working_map, _), do: working_map
+
+  defp project_at_path(map, [], mapping), do: project_data(map, mapping)
+
+  defp project_at_path(map, [key | rest], mapping) when is_map(map) do
+    case Map.get(map, key) do
+      nil -> map
+      value -> Map.put(map, key, project_at_path(value, rest, mapping))
+    end
+  end
+
+  defp project_at_path(list, ["[]" | rest], mapping) when is_list(list) do
+    Enum.map(list, fn item ->
+      if path_exists?(item, rest), do: project_at_path(item, rest, mapping), else: item
+    end)
+  end
+
+  defp project_at_path(list, ["[" <> index_str | rest], mapping) when is_list(list) do
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> list
+      item -> List.replace_at(list, index, project_at_path(item, rest, mapping))
+    end
+  end
+
+  defp project_at_path(data, _, _mapping), do: data
 
   # Project and replace operation: replaces the entire working map with a projection
   defp apply_project_and_replace_operation(working_map, %{"projection" => projection}) do
@@ -685,6 +714,22 @@ defmodule PolarityReducerEx.DslInterpreter do
     end)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp path_exists?(_data, []), do: true
+  defp path_exists?(map, [key | rest]) when is_map(map) do
+    Map.has_key?(map, key) and path_exists?(Map.get(map, key), rest)
+  end
+  defp path_exists?(list, ["[]" | rest]) when is_list(list) do
+    Enum.any?(list, &path_exists?(&1, rest))
+  end
+  defp path_exists?(list, ["[" <> index_str | rest]) when is_list(list) do
+    index = String.trim_trailing(index_str, "]") |> String.to_integer()
+    case Enum.at(list, index) do
+      nil -> false
+      item -> path_exists?(item, rest)
+    end
+  end
+  defp path_exists?(_, _), do: false
 
   # Get a nested value using a parsed path with wildcard support
   defp get_nested_value(map, []), do: map
