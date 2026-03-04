@@ -1053,32 +1053,57 @@ defmodule PolarityReducerEx.DslInterpreter do
   end
 
   # Process truncate list shape with special variables
-  defp process_truncate_shape(shape, list, _max_size) when is_map(shape) do
-    length = length(list)
+  defp process_truncate_shape(shape, list, max_size) when is_map(shape) do
+    original_count = length(list)
+    truncated = Enum.take(list, max_size)
+    was_truncated = original_count > max_size
 
     Enum.reduce(shape, %{}, fn {key, value}, acc ->
-      resolved_value = case value do
-        "$length" -> length
-        "$slice(" <> rest ->
-          case parse_slice_params(rest) do
-            {start_idx, end_idx} -> Enum.slice(list, start_idx, end_idx - start_idx)
-            _ -> nil
-          end
-        "$map_slice(" <> rest ->
-          case parse_map_slice_params(rest) do
-            {start_idx, end_idx, path} ->
-              list
-              |> Enum.slice(start_idx, end_idx - start_idx)
-              |> Enum.map(&get_nested_value(&1, parse_path(path)))
-            _ -> nil
-          end
-        _ -> value
-      end
+      resolved_value = resolve_truncate_value(value, list, truncated, original_count, was_truncated, max_size)
       Map.put(acc, key, resolved_value)
     end)
   end
 
   defp process_truncate_shape(_, list, _), do: list
+
+  defp resolve_truncate_value(value, list, truncated, original_count, was_truncated, max_size)
+
+  defp resolve_truncate_value("$length", _list, _truncated, original_count, _was_truncated, _max_size),
+    do: original_count
+
+  defp resolve_truncate_value("$original_count", _list, _truncated, original_count, _was_truncated, _max_size),
+    do: original_count
+
+  defp resolve_truncate_value("$truncated", _list, truncated, _original_count, _was_truncated, _max_size),
+    do: truncated
+
+  defp resolve_truncate_value("$was_truncated", _list, _truncated, _original_count, was_truncated, _max_size),
+    do: was_truncated
+
+  defp resolve_truncate_value("$slice(" <> rest, list, _truncated, _original_count, _was_truncated, _max_size) do
+    case parse_slice_params(rest) do
+      {start_idx, end_idx} -> Enum.slice(list, start_idx, end_idx - start_idx)
+      _ -> nil
+    end
+  end
+
+  defp resolve_truncate_value("$map_slice(" <> rest, list, _truncated, _original_count, _was_truncated, _max_size) do
+    case parse_map_slice_params(rest) do
+      {start_idx, end_idx, path} ->
+        list
+        |> Enum.slice(start_idx, end_idx - start_idx)
+        |> Enum.map(&get_nested_value(&1, parse_path(path)))
+      _ -> nil
+    end
+  end
+
+  defp resolve_truncate_value(value, list, truncated, original_count, was_truncated, max_size) when is_map(value) do
+    Enum.reduce(value, %{}, fn {key, v}, acc ->
+      Map.put(acc, key, resolve_truncate_value(v, list, truncated, original_count, was_truncated, max_size))
+    end)
+  end
+
+  defp resolve_truncate_value(value, _list, _truncated, _original_count, _was_truncated, _max_size), do: value
 
   # Process aggregate list shape with special variables
   defp process_aggregate_shape(shape, list) when is_map(shape) do

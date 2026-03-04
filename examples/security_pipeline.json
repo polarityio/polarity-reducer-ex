@@ -29,10 +29,10 @@
       "path": "security_events",
       "max_size": 5,
       "shape": {
-        "total_events": "$length",
-        "sample_events": "$slice(0, 5)",
+        "total_events": "$original_count",
+        "sample_events": "$truncated",
         "event_titles": "$map_slice(0, 3, title)",
-        "truncated": true
+        "truncated": "$was_truncated"
       }
     }
   ],
